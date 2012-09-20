@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Basecamp Blockers</title>
+  <link rel="stylesheet" href="bootstrap.min.css">
+  <script type='text/javascript' src='jquery-1.7.1.min.js'></script>
+  <script type='text/javascript' src='jquery.isotope.min.js'></script>
+  <script type="text/javascript" src="bugzilla.js"></script> 
+  <script type="text/javascript" src="github.js"></script> 
+  <script type="text/javascript" src="mustache.js" ></script>
+  <script type="text/javascript" src="asyncStorage.js" ></script>
+  <script type="text/javascript" src="eventEmitter.js" ></script>
+  <!-- test data -->
+  <script type="text/javascript" src="bugzillaData.js" ></script>
+  <script type="text/javascript" src="githubData.js" ></script>
+  <!-- test data -->
+  <style>
+    body {
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-size: 9pt;
+      margin: 0 auto;
+      background-image: -moz-radial-gradient(center 45deg, circle closest-side, #fff 0%, #DDD 140%);
+      background-attachment: fixed;
+      text-align: left;
+    }
+
+    #controls {
+      float: left;
+    }
+    
+    label {
+      width: 200px;
+    }
+
+    .ray {
+      background-color:  rgba(255,255,255,.1);
+      width: 150%;
+      height: 10px;
+      position:  fixed;
+      top:  50%;
+      left:  -25%;
+      -moz-transform: 
+      -moz-transform-origin: 100% 50%;
+      z-index: -1;
+    }
+
+    .main {
+      width: 100%;
+    }
+
+    .page-header {
+      margin-left: 0.5em;
+    }
+
+    .widget {
+      text-align: center;
+      height: 10em;
+      width: 15em;
+      clear: both;
+      padding-top: 2em;
+      margin: 10px;
+      border-radius: 0.5em;
+      background: rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }
+
+    .bugCount {
+      text-align: center;
+    }
+
+    .bugCount > h1 {
+      font-size: 6em;
+    }
+
+    .bugList {
+      text-align: left;
+    }
+
+    .bugList ul {
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <div>
+    <h1>Basecamp Blockers</h1>
+  </div>
+  <div id="controls">
+    <input type="checkbox" id="loe"><label>bugs w/o LOE estimate</label>
+  </div>
+  <br clear="all">
+  <div id='feedback' style='text-align: center;'></div>
+  <br clear="all">
+  <div id='summary' style='text-align: center;'></div>
+  <br clear="all">
+
+  <div class="main container-fluid">
+    <div id="container"></div>
+  </div>
+
+<script>
+
+/*
+
+- on load, fetch all basecamp blockers from bugzilla and github
+- after results are collected, store in asyncStorage.results, update asyncStorage.lastUpdated and emit dataAvailable
+- on dataAvailable, display results
+- on a timer, check if lastUpdated is >5mins, reload data if so
+
+*/
+
+// every checkInterval minutes, check if the lastUpdated value is >updateInterval
+// checkInterval is 1 minute
+// updateInterval is 5 minutes
+var checkInterval = 1 * 60 * 1000
+var updateInterval = 5 * 60 * 1000
+
+// events setup
+var self = this
+EventEmitter(self)
+
+// bugzilla search options for all basecamp+ bugs
+var defaultSearchOpts = {
+  'bug_status': ["NEW", "UNCONFIRMED", "ASSIGNED", "REOPENED"],
+  'field0-0-0': 'cf_blocking_basecamp',
+  'type0-0-0': 'equals',
+  'value0-0-0': '+'
+}
+
+// helper for seaching bugzilla
+function bugSearch(type) {
+  this.type = type
+}
+bugSearch.prototype = {
+  fetch: function(options, callback) {
+    var url = (this.type == 'bug') ? '/bug' : '/count';
+    Bugzilla.ajax({
+      url: url,
+      data: options,
+      success: function(data) {
+        callback(data.data || data.bugs);
+      }
+    });
+  }
+}
+
+// helper for searching github
+function issueSearch() {
+}
+issueSearch.prototype = {
+  fetch: function(options, callback) {
+    Github.user = 'mozilla-b2g'
+    Github.repo = 'gaia'
+
+    var results = []
+    options.page = 1
+
+    function driver() {
+      Github.search(options, function(someResults) {
+        if (someResults.length) {
+          results = results.concat(someResults)
+          options.page++
+          setTimeout(driver, 0)
+        }
+        else
+          callback(results)
+      })
+    }
+    driver()
+  }
+}
+
+// user feedback message with spinner
+// pass empty string to clear
+self.on('feedback', function progress(msg) {
+  var feedback = document.querySelector('#feedback')
+  if (!msg)
+    feedback.innerHTML = ''
+  else
+    feedback.innerHTML = "<img src='http://www.fbi.gov/spinner.gif'><br>" + msg
+})
+
+// fetch data from servers, emit dataAvailable upon complete
+// results are written to asyncStorage with key 'results'
+function fetchAll(searchOpts, handleResults) {
+  // update user feedback to indicate progress
+  self.emit('feedback', 'Searching Bugzilla...')
+
+  var results = []
+
+  new bugSearch('bug').fetch(defaultSearchOpts, function(results) {
+    self.emit('feeback', 'Searched Bugzilla, now searching Github...')
+
+    // test data
+    //results = bugzillaData
+    //githubResults = githubData
+
+    // now do github search
+    var issuesOptions = {
+      per_page: 100,
+      state: 'open',
+      labels: 'blocking-basecamp+'
+    }
+
+    new issueSearch().fetch(issuesOptions, function(githubResults) {
+
+      /*
+      if (searchOpts.noLOE) {
+        githubResults = githubResults.filter(function(issue) {
+          return issue.labels.every(function(label) {
+            return !(/\[LOE:/.test(label.name));
+          })
+        })
+      }
+      */
+
+      results = results.concat(githubResults)
+
+      asyncStorage.setItem('lastUpdated', new Date(), function(){})
+      asyncStorage.setItem('results', results, function(){})
+
+      self.emit('feedback', '')
+      self.emit('dataAvailable')
+    })
+  })
+}
+
+// update UI when there's new data or changed configuration
+self.on('dataAvailable', function display() {
+  self.emit('feedback', 'Updating UI...')
+  asyncStorage.getItem('results', function(results) {
+
+    if (!results) {
+      self.emit('feedback', 'no results')
+      return
+    }
+
+    var main = document.querySelector('.main')
+
+    // remove previous container
+    main.removeChild(document.querySelector('#container'))
+
+    // create new container
+    var container = document.createElement('div')
+    container.setAttribute('id', 'container')
+    main.appendChild(container)
+
+    // aggregate bugs per user
+    var names = {}
+    var i = 0
+    results.forEach(function(bug) {
+      // convert github to bugzilla
+      if (bug.user) {
+        bug.assigned_to = bug.assignee || (bug.assignee = {login:'No one'})
+        bug.assigned_to.name = bug.assignee.login
+        bug.assigned_to.real_name = bug.assignee.login
+        bug.searchURL = 'https://github.com/mozilla-b2g/gaia/issues/assigned/' + encodeURIComponent(bug.assignee.login) + '?labels=blocking-basecamp%2B&state=open'
+      }
+      else
+        bug.searchURL = 'https://bugzilla.mozilla.org/buglist.cgi?quicksearch=@' + encodeURIComponent(bug.assigned_to.name) + ' blocking-basecamp:%2b'
+
+      // LOE
+      if (document.querySelector('#loe').checked) {
+        var hasLOE = bug.user ?
+          bug.labels.every(function(label) {
+            return !(/\[LOE:/.test(label.name))
+          }) : !(/\[LOE:/.test(bug.whiteboard))
+        if (!hasLOE)
+          return
+      }
+
+      bug.nameKey = bug.assigned_to.name
+
+      if (!names[bug.nameKey]) {
+        names[bug.nameKey] = { user: bug.assigned_to, count: 1, bugs: [bug]}
+      }
+      else {
+        names[bug.nameKey].count++
+        names[bug.nameKey].bugs.push(bug)
+        names[bug.nameKey].searchURL = bug.searchURL
+      }
+      i++
+    });
+
+    // show number of results at top
+    document.querySelector('#summary').innerHTML = i + ' Results';
+
+    var container = document.querySelector('#container')
+
+    // generate content for each result, add to main container
+    for (var name in names) {
+      var template =
+        "<div class='widget' id='{{_id}}'>"
+          + "<div class='bugCount'>"
+            + "<h1>{{count}}</h1><br clear=all>"
+            + "<a href='{{url}}' target='new'>"
+              + "<div>{{title}}</div>"
+            + "</a>"
+          + "</div>"
+        + "</div>";
+      container.innerHTML += Mustache.to_html(template, {
+        url: names[name].searchURL,
+        count: names[name].count,
+        title: name
+      });
+    }
+
+    // isotope (verb)
+    $('#container').isotope({
+      itemSelector : '.widget',
+      sortBy : 'bugCount',
+      sortAscending : false,
+      layoutMode : 'fitRows',
+      getSortData : {
+        bugCount : function ( $elem ) {
+          return parseInt($elem.find('.bugCount').text(), 10);
+        }
+      }
+    });
+
+    self.emit('feedback', '')
+  })
+})
+
+// initial data load
+// display cache initially. data will update within a minute.
+asyncStorage.getItem('results', function(results) {
+  if (!results.length) {
+    fetchAll()
+  }
+  else
+    self.emit('dataAvailable')
+})
+
+// check lastUpdated, and get fresh data if interval has been exceeded
+function driver() {
+  asyncStorage.getItem('lastUpdated', function(lastUpdated) {
+    if ((new Date()) - lastUpdated > updateInterval)
+      fetchAll()
+  })
+}
+
+setInterval(driver, checkInterval)
+
+// run driver at load, to get fresh data quickly
+driver()
+
+// LOE checkbox
+loe.addEventListener('change', function() {
+  self.emit('dataAvailable')
+})
+
+</script>
+
+<pre>
+- move LOE filter to work on cached data
+- filter on feature vs bug
+- stats across top (total blockers, total github, total bugzilla, % estimated total and for each, number of LOE of each size)
+</pre>
+
+</body>
+</html>
