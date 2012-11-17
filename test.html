@@ -3,62 +3,57 @@
 <head>
   <meta charset="utf-8" />
   <title>Basecamp Blockers</title>
-  <link rel="stylesheet" href="bootstrap.min.css">
-  <script type='text/javascript' src='jquery-1.7.1.min.js'></script>
+  <link rel="stylesheet" href="/bootstrap/bootstrap.min.css">
+  <link rel="stylesheet" type="text/css" href="style/headers.css"/>
+  <script type='text/javascript' src='jquery-1.8.2.min.js'></script>
   <script type='text/javascript' src='jquery.isotope.min.js'></script>
   <script type="text/javascript" src="bugzilla.js"></script> 
   <script type="text/javascript" src="github.js"></script> 
   <script type="text/javascript" src="mustache.js" ></script>
   <script type="text/javascript" src="asyncStorage.js" ></script>
   <script type="text/javascript" src="eventEmitter.js" ></script>
-  <!-- test data -->
+  <!-- test data 
   <script type="text/javascript" src="bugzillaData.js" ></script>
   <script type="text/javascript" src="githubData.js" ></script>
-  <!-- test data -->
+  -->
   <style>
+
+    @font-face {
+      font-family: 'FontLight';
+      src: local('Open Sans Light'), url('fonts/opensans-light-webfont.woff') format('woff');
+    }
+    @font-face {
+      font-family: 'FontRegular';
+      src: local('Open Sans'), url('fonts/opensans-regular-webfont.woff') format('woff');
+    }
+    @font-face {
+      font-family: 'FontSemibold';
+      src: local('Open Sans Semibold'), url('fonts/opensans-semibold-webfont.woff') format('woff');
+    }
+    @font-face {
+      font-family: 'FontBold';
+      src: local('Open Sans Bold'), url('fonts/opensans-bold-webfont.woff') format('woff');
+    }
+
+    body{
+      margin: 0;
+      padding: 0
+    }
+
     body {
       font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
       font-size: 9pt;
-      margin: 0 auto;
       background-image: -moz-radial-gradient(center 45deg, circle closest-side, #fff 0%, #DDD 140%);
       background-attachment: fixed;
       text-align: left;
     }
 
-    #controls {
-      float: left;
-    }
-    
-    label {
-      width: 200px;
-    }
-
-    .ray {
-      background-color:  rgba(255,255,255,.1);
-      width: 150%;
-      height: 10px;
-      position:  fixed;
-      top:  50%;
-      left:  -25%;
-      -moz-transform: 
-      -moz-transform-origin: 100% 50%;
-      z-index: -1;
-    }
-
-    .main {
-      width: 100%;
-    }
-
-    .page-header {
-      margin-left: 0.5em;
+    #content {
     }
 
     .widget {
       text-align: center;
-      height: 10em;
       width: 15em;
-      clear: both;
-      padding-top: 2em;
       margin: 10px;
       border-radius: 0.5em;
       background: rgba(0, 0, 0, 0.1);
@@ -67,36 +62,65 @@
 
     .bugCount {
       text-align: center;
+      height: 10em;
+      padding-top: 2em;
     }
 
     .bugCount > h1 {
       font-size: 6em;
     }
-
-    .bugList {
-      text-align: left;
+    
+    .bug {
+      min-height: 6em;
     }
 
-    .bugList ul {
-      margin: 0;
+    /**** Isotope filtering ****/
+
+    .isotope-item {
+      z-index: 2;
     }
+
+    .isotope-hidden.isotope-item {
+      pointer-events: none;
+      z-index: 1;
+    }
+
   </style>
 </head>
-<body>
-  <div>
+<body role="application">
+  <section role="region">
+  <header>
     <h1>Basecamp Blockers</h1>
-  </div>
-  <div id="controls">
-    <input type="checkbox" id="loe"><label>bugs w/o LOE estimate</label>
-  </div>
-  <br clear="all">
-  <div id='feedback' style='text-align: center;'></div>
-  <br clear="all">
-  <div id='summary' style='text-align: center;'></div>
-  <br clear="all">
-
+  </header>
+  </section>
   <div class="main container-fluid">
-    <div id="container"></div>
+    <div class="row-fluid">
+      <div id="sidebar" class="span2">
+         <!--Sidebar content-->
+        <div id="controls">
+          <span>bugs w/o LOE estimate</span>
+          <input type="checkbox" id="loe">
+        </div>
+        <br>
+
+        <div id='controls2'>
+          <ul id="filters">
+            <li><a href="#" onclick="onFilterClick(this)" data-filter="*">show all</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div id="content" class="span10">
+         <!--Body content-->
+        <br clear="all">
+        <div id='feedback' style='text-align: center;'></div>
+        <br clear="all">
+        <div id='summary' style='text-align: center;'></div>
+        <br clear="all">
+        <div id="container"></div>
+      </div>
+    </div>
+
   </div>
 
 <script>
@@ -119,6 +143,10 @@ var updateInterval = 5 * 60 * 1000
 // events setup
 var self = this
 EventEmitter(self)
+
+// firebase setup
+var remote = new Firebase('https://mozilla.firebaseio.com/workweek');
+
 
 // bugzilla search options for all basecamp+ bugs
 var defaultSearchOpts = {
@@ -221,7 +249,7 @@ function fetchAll(searchOpts, handleResults) {
       asyncStorage.setItem('results', results, function(){})
 
       self.emit('feedback', '')
-      self.emit('dataAvailable')
+      self.emit('displayIssues')
     })
   })
 }
@@ -236,15 +264,15 @@ self.on('dataAvailable', function display() {
       return
     }
 
-    var main = document.querySelector('.main')
+    var content = document.querySelector('#content')
 
     // remove previous container
-    main.removeChild(document.querySelector('#container'))
+    content.removeChild(document.querySelector('#container'))
 
     // create new container
     var container = document.createElement('div')
     container.setAttribute('id', 'container')
-    main.appendChild(container)
+    content.appendChild(container)
 
     // aggregate bugs per user
     var names = {}
@@ -323,14 +351,158 @@ self.on('dataAvailable', function display() {
   })
 })
 
+self.on('displayIssues', function display() {
+  self.emit('feedback', 'Updating UI...')
+  asyncStorage.getItem('results', function(results) {
+
+    /*
+    var labelNames = [
+      'FM Radio',
+      'Keyboard & IME',
+      'browser',
+      'bluetooth',
+      'calculator',
+      'calendar',
+      'camera',
+      'clock',
+      'contacts',
+      'dialer',
+      'email',
+      'gallery',
+      'homescreen',
+      'market',
+      'music',
+      'payments',
+      'settings',
+      'sms',
+      'system',
+      'system/card_view',
+      'system/list_menu',
+      'system/lockscreen',
+      'system/notification',
+      'system/quick_settings',
+      'system/statusbar',
+      'system/trusted_dialog',
+      'system/utility_tray',
+      'system/window_management',
+      'video'
+    ]
+    */
+
+    var labels = {}
+    /*
+    labelNames.forEach(function(label, i) {
+      labels[label] = {
+        count: 0,
+        id: 'label' + i
+      }
+    })
+    */
+
+    if (!results) {
+      self.emit('feedback', 'no results')
+      return
+    }
+
+    var content = document.querySelector('#content')
+
+    // remove previous container
+    content.removeChild(document.querySelector('#container'))
+
+    // create new container
+    var container = document.createElement('div')
+    container.setAttribute('id', 'container')
+    content.appendChild(container)
+
+    // show number of results at top
+    document.querySelector('#summary').innerHTML = results.length + ' Results';
+
+    // aggregate bugs per app label
+    results.forEach(function(bug) {
+      // convert github to bugzilla
+      if (bug.user) {
+        bug.assigned_to = bug.assignee || (bug.assignee = {login:'No one'})
+        bug.assigned_to.name = bug.assignee.login
+        bug.assigned_to.real_name = bug.assignee.login
+        bug.searchURL = 'https://github.com/mozilla-b2g/gaia/issues/assigned/' + encodeURIComponent(bug.assignee.login) + '?labels=blocking-basecamp%2B&state=open'
+      }
+      else
+        bug.searchURL = 'https://bugzilla.mozilla.org/buglist.cgi?quicksearch=@' + encodeURIComponent(bug.assigned_to.name) + ' blocking-basecamp:%2b'
+
+      // process github issues
+      if (bug.user) {
+        var labelSelectors = []
+        bug.labels.forEach(function(label) {
+          // LOE estimates
+          if (/\[LOE:/.test(label.name)) {
+            bug.loe = label.name.substr(-2, 1)
+          }
+
+          if (!labels[label.name])
+            labels[label.name] = { count: 0, id: 'label' + labels.length }
+
+          if (labels[label.name]) {
+            labels[label.name].count++
+            labelSelectors.push(labels[label.name].id)
+          }
+        })
+        bug.labelString = labelSelectors.join(' ')
+      }
+      // process bugzilla items
+      else if(/\[LOE:/.test(bug.whiteboard)) {
+        bug.loe = bug.whiteboard.substr(bug.whiteboard.indexOf('LOE:')+1, 1)
+      }
+
+      // generate content for each result, add to main container
+      // TODO: add LOE, labels
+      var template =
+        "<div class='widget {{classes}}' id='{{_id}}'>"
+          + "<div class='bug'>"
+            + "<a href='{{url}}' target='new'>"
+              + "<div>{{title}}</div>"
+            + "</a>"
+          + "</div>"
+        + "</div>"
+
+      container.innerHTML += Mustache.to_html(template, {
+        url: bug.html_url || 'https://bugzilla.mozilla.org/show_bug.cgi?id=' + bug.id,
+        title: (bug.summary || bug.title).substr(0, 100),
+        classes: bug.labelString
+      });
+    })
+
+    // update controls
+    var filters = document.querySelector('#filters')
+    while (filters.childNodes.length > 1)
+      filters.removeChild(filters.lastChild)
+    for (var label in labels)
+      filters.innerHTML += '<li><a href="#" onclick="onFilterClick(this)" data-filter=".' + labels[label].id + '">' + label + '</a> (' + labels[label].count + ')</li>'
+
+    // isotope (verb)
+    $('#container').isotope({
+      itemSelector : '.widget',
+      sortBy : 'bugCount',
+      sortAscending : false,
+      layoutMode : 'fitRows',
+      getSortData : {
+        bugCount : function ( $elem ) {
+          return parseInt($elem.find('.bugCount').text(), 10);
+        }
+      }
+    });
+
+    self.emit('feedback', '')
+  })
+})
+
 // initial data load
 // display cache initially. data will update within a minute.
 asyncStorage.getItem('results', function(results) {
-  if (!results.length) {
+  if (!results || !results.length) {
     fetchAll()
   }
   else
-    self.emit('dataAvailable')
+    self.emit('displayIssues')
 })
 
 // check lastUpdated, and get fresh data if interval has been exceeded
@@ -344,19 +516,41 @@ function driver() {
 setInterval(driver, checkInterval)
 
 // run driver at load, to get fresh data quickly
-driver()
+//driver()
 
 // LOE checkbox
 loe.addEventListener('change', function() {
-  self.emit('dataAvailable')
+  self.emit('displayIssues')
 })
+
+// isotope filters
+function onFilterClick(el) {
+  var selector = $(el).attr('data-filter')
+  $('#container').isotope({ filter: selector })
+  return false
+}
 
 </script>
 
 <pre>
-- move LOE filter to work on cached data
-- filter on feature vs bug
-- stats across top (total blockers, total github, total bugzilla, % estimated total and for each, number of LOE of each size)
+- add view support (user as default, can choose bug)
+- add user count tracking
+- fix bug view
+- get filtering working
+- stats across top
+- add generic grouper
+
+stats (arrays in asyncStorage, keyed by date)
+- blockerCount
+- blockerCountGaia
+- blockerCountPlatform
+- userCount
+- userCountGaia
+- userCountPlatform
+- loeCount
+- loeCountS
+- loeCountM
+- loeCountL
 </pre>
 
 </body>

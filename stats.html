@@ -1,0 +1,261 @@
+<!DOCTYPE html> 
+<meta charset="utf-8"> 
+<title>some queries.</title> 
+<style> 
+  body {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 9pt;
+    margin: 0 auto;
+    background-image: -moz-radial-gradient(center 45deg, circle closest-side, #fff 0%, #DDD 140%);
+    background-attachment: fixed;
+    text-align: center;
+  }
+
+  #content {
+    margin-left: auto ;
+    margin-right: auto ;
+    /*
+    -moz-column-count: 3;
+    -moz-column-width: 300px;
+    -moz-column-gap: 20px;
+    */
+    -moz-background(#header);
+  }
+
+  #header {
+    font-size: 36px;
+    opacity: 0.3;
+    margin: 1px;
+  }
+
+  #templates {
+    display: none;
+  }
+    
+  .entry {
+    padding: 0.5em;
+    margin: 10px;
+    height: 100px;
+    width: 315px;
+    text-align: left;
+    -moz-border-radius: 1em;
+    background: rgba(0, 0, 0, 0.1);
+    float: left;
+  }
+   
+  .name {
+    font-weight: bold;
+    font-size: 14pt;
+    max-width: 30px;
+  }
+   
+  .portrait {
+    float: left;
+    padding-right: 0.5em;
+    height: 73px;
+    width: 73px;
+  }
+
+  .portrait + div {
+    float: left;
+  }
+   
+  .graph {
+    text-align: right;
+    color: gray;
+    height: 100px;
+  }
+
+  p {
+    margin: 0;
+  }
+   
+  .info {
+    color: gray;
+  }
+   
+  a.dashboard {
+    text-decoration: inherit;
+    color: inherit;
+  }
+   
+  a.dashboard:hover {
+    text-decoration: underline;
+  }
+
+  a.timerecord {
+    color: inherit;
+  }
+
+  .ray {
+    background-color:  rgba(255,255,255,.1);
+    width: 150%;
+    height: 10px;
+    position:  fixed;
+    top:  50%;
+    left:  -25%;
+    -moz-transform: 
+    -moz-transform-origin: 100% 50%;
+    z-index: -1;
+  }
+</style> 
+<link rel="stylesheet" href="tipsy.css" type="text/css"/> 
+<script type='text/javascript' src='jquery-1.8.2.min.js'></script>
+<script type='text/javascript' src="jquery.tipsy.js"></script> 
+<script type='text/javascript' src="bugzilla.js"></script> 
+<script type='text/javascript' src="date-utils.js"></script> 
+<script type="text/javascript" src="mustache.js" ></script>
+<script type="text/javascript" src="asyncStorage.js" ></script>
+<script type="text/javascript" src="eventEmitter.js" ></script>
+<script type='text/javascript' src="protovis-r3.2.js"></script> 
+<script type='text/javascript' src="protovis.tipsy.js"></script> 
+<script type='text/javascript' src="team.js"></script> 
+<script> 
+  // add event emitter to window scope
+  var self = this
+  EventEmitter.call(self)
+
+  self.on('feedback', function progress(msg) {
+    var feedback = document.querySelector('#feedback')
+    if (!msg)
+      feedback.innerHTML = ''
+    else
+      feedback.innerHTML = "<img src='http://www.fbi.gov/spinner.gif'><br>" + msg
+  })
+
+  var WEEK_MS = 1000 * 60 * 60 * 24 * 7;
+  var WEEKS_BACK = 4;
+  var STYLE_DEBUGGING_MODE = false;
+
+  var d = new Date()
+  var lastMonthDate = new Date(d.getFullYear(), d.getMonth(), 0, 0)
+  var lastMonthName = lastMonthDate.toLocaleFormat('%b')
+  var endOfLastMonth = lastMonthDate.toLocaleFormat('%y-%m-%d')
+  lastMonthDate.setDate(1)
+  var beginningOfLastMonth = lastMonthDate.toLocaleFormat('%y-%m-%d')
+
+  var graphs = [
+    {
+      name: 'blockers fixed weekly',
+      type: 'count',
+      config: {
+        'field0-0-0': 'cf_blocking_basecamp',
+        'type0-0-0': 'equals',
+        'value0-0-0': '+',
+        'changed_field': 'resolution',
+        'changed_field_to': 'fixed',
+      }
+    }
+  ]
+
+   
+  function getActivity(config, weeksBack, cb) {
+    var result = [],
+        queryCount = 0
+   
+    function getActivityForWeek(query, numWeeksAgo) {
+      query['changed_before'] = timeAgo(WEEK_MS * numWeeksAgo)
+      query['changed_after'] = timeAgo(WEEK_MS * (numWeeksAgo + 1))
+
+      Bugzilla.ajax({
+        url: "/count",
+        data: query,
+        success: function(data) {
+          queryCount++
+          result[numWeeksAgo] = data.data
+          if (queryCount == weeksBack)
+            cb(result)
+        }
+      });
+    }
+   
+    for (var i = 0; i < weeksBack; i++)
+      getActivityForWeek(config, i);
+  }
+   
+  $(window).ready(function() {
+    graphs.forEach(function(graph) {
+      getActivity(graph.config, WEEKS_BACK, function(result) {
+        var node = $('#templates .entry').clone()
+        $('#content').append(node)
+        var graphNode = node.get(0).querySelector('.graph')
+        //result.reverse()
+        console.log(result)
+        makeBarChart(result, graphNode, graph.name)
+      })
+    })
+  })
+
+  function makeBarChart(data, node, text) {
+    var vis = new pv.Panel()
+        .width(100)
+        .height(30)
+        .canvas(node)
+   
+    function title(d) {
+      var weeksAgo = data.length - this.index - 1;
+      var timeAgo;
+      switch (weeksAgo) {
+        case 0:
+          timeAgo = "this week";
+          break;
+        case 1:
+          timeAgo = "last week";
+          break;
+        default:
+          timeAgo = weeksAgo + " weeks ago";
+      }
+      return text + " fixed " + d + " " +
+             timeAgo + ".";
+    }
+   
+    vis.add(pv.Bar)
+        .data(data)
+        .width(20)
+        .height(function(d) { return d * 5; })
+        .bottom(0)
+        .left(function() { return this.index * 25; })
+        .text(title)
+        .event("mouseover", pv.Behavior.tipsy({gravity: "w"}));
+   
+    vis.render()
+    console.log('done')
+  }
+
+  function fetchAll(searchOpts, callback) {
+    // update user feedback to indicate progress
+    self.emit('feedback', 'Searching Bugzilla...')
+
+    var results = []
+
+    new bugSearch('bug').fetch(defaultSearchOpts, function(results) {
+      asyncStorage.setItem('lastUpdated', new Date(), function(){})
+      asyncStorage.setItem('results', results, function(){})
+
+      self.emit('feedback', '')
+      self.emit('displayIssues')
+    })
+  }
+
+</script> 
+<div id='feedback' style='text-align: center;'></div>
+<div id="content"></div>
+
+<div id="templates"> 
+  <div class="entry"> 
+    <div class="title">
+    </div>
+    <div class="graph">
+    </div>
+  </div> 
+</div>
+
+<script>
+  var NUM = 50;
+  for(var i=0;i<NUM;i++){
+   var ray = document.createElement("div");
+   ray.className = "ray";
+   ray.style.MozTransform = "rotate(%deg)".replace("%", i*360/NUM);
+   document.body.appendChild(ray);
+  }
+</script>

@@ -1,0 +1,364 @@
+<!DOCTYPE html> 
+<meta charset="utf-8"> 
+<title>FirefoxOS.Workweek.SF.2012</title> 
+<style> 
+  body {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 9pt;
+    margin: 0 auto;
+    /*
+    background-image: -moz-radial-gradient(center 45deg, circle closest-side, #fff 0%, #DDD 140%);
+    background-attachment: fixed;
+    */
+    background-color: #fff;
+  }
+
+  #header {
+    margin: 1em;
+  }
+
+  #content {
+    margin-top: 4em;
+    margin-left: auto ;
+    margin-right: auto ;
+  }
+
+  .card {
+    width: 30em;
+    height: 15em;
+    margin: 1em;
+    background-color: #fff;
+    box-shadow: 3px 3px 6px rgba(0, 0, 0, 0.2);
+    /*border: 0.05em solid #ccc;*/
+    text-align: center;
+    padding: 0px;
+    float: left;
+  }
+
+  h1 {
+    font-size: 10em;
+    margin: 0;
+    margin-bottom: -15px;
+  }
+
+  h3 {
+    font-size: 1.5em;
+    margin: 0;
+  }
+
+  /*
+  .ray {
+    background-color:  rgba(255,255,255,.1);
+    width: 150%;
+    height: 10px;
+    position:  fixed;
+    top:  50%;
+    left:  -25%;
+    -moz-transform: 
+    -moz-transform-origin: 100% 50%;
+    z-index: -1;
+  }
+  */
+</style> 
+<link rel="stylesheet" href="tipsy.css" type="text/css"/> 
+<script type='text/javascript' src='jquery-1.8.2.min.js'></script>
+<script type='text/javascript' src="jquery.tipsy.js"></script> 
+<script type='text/javascript' src="bugzilla.js"></script> 
+<script type='text/javascript' src="date-utils.js"></script> 
+<script type="text/javascript" src="mustache.js" ></script>
+<script type="text/javascript" src="asyncStorage.js" ></script>
+<script type="text/javascript" src="eventEmitter.js" ></script>
+<script type='text/javascript' src="protovis-r3.2.js"></script> 
+<script type='text/javascript' src="protovis.tipsy.js"></script> 
+<script type='text/javascript' src="utils.js"></script> 
+<script type='text/javascript' src="team.js"></script> 
+<script type='text/javascript' src="firebase.js"></script> 
+<script> 
+
+/*
+
+  object:
+  - title
+  - key
+  - search configuration
+  - type (count, rich)
+  - updateInterval
+  - lastUpdated
+  - chartType: line, bar
+  - chartBucket: day/week/month
+  - chartLength: number
+  - callback
+
+  - type: count
+  - type: rich
+
+  - driver iterates through items, updating if
+
+  // every checkInterval minutes, check if the lastUpdated value is >updateInterval
+  // checkInterval is 1 minute
+  // updateInterval is 5 minutes
+  var checkInterval = 1 * 60 * 1000
+  var updateInterval = 5 * 60 * 1000
+  // check lastUpdated, and get fresh data if interval has been exceeded
+  function driver() {
+    asyncStorage.getItem('lastUpdated', function(lastUpdated) {
+      if ((new Date()) - lastUpdated > updateInterval)
+        fetchAll()
+    })
+  }
+  setInterval(driver, checkInterval)
+
+  function fetchAll() {
+    asyncStorage.length(function(length) {
+      for (var i = 0; i < length; i++) {
+        asyncStorage.key(function(key) {
+        })
+      }
+    })
+  }
+*/
+
+  // add event emitter to window scope
+  var self = this
+  EventEmitter.call(self)
+
+  /*
+  var remote = new Firebase('https://mozilla.firebaseio.com/workweek')
+  remote.on('value', function(value) {
+    console.log('fb', value.val())
+  })
+  */
+
+  $(window).ready(function() {
+
+    addCountItem('Open Blockers', 'blockerCount', {
+      'bug_status': ["NEW", "UNCONFIRMED", "READY", "ASSIGNED", "REOPENED"],
+      'field0-0-0': 'cf_blocking_basecamp',
+      'type0-0-0': 'equals',
+      'value0-0-0': '+',
+    })
+    addCountItem('Workweek Blockers Fixed', 'workweekBlockersFixed', {
+      'bug_status': ['RESOLVED', 'VERIFIED'],
+      'resolution': 'FIXED',
+      'field0-0-0': 'cf_blocking_basecamp',
+      'type0-0-0': 'equals',
+      'value0-0-0': '+',
+      'changed_field': 'Resolution',
+      'changed_field_to': 'FIXED',
+      'changed_after': '2012-11-04',
+      'changed_before': '2012-11-10',
+    })
+
+    addCountItem('Open Smoketest Blockers', 'smoketestBlockerCount', {
+      'bug_status': ["NEW", "UNCONFIRMED", "READY", "ASSIGNED", "REOPENED"],
+      'keywords': 'smoketest',
+      'product': 'boot2gecko',
+      'field0-0-0': 'cf_blocking_basecamp',
+      'type0-0-0': 'equals',
+      'value0-0-0': '+',
+    })
+    addCountItem('Workweek Smoketest Blockers Fixed', 'smoketestBlockersFixed', {
+      'bug_status': ['RESOLVED', 'VERIFIED'],
+      'resolution': 'FIXED',
+      'field0-0-0': 'cf_blocking_basecamp',
+      'type0-0-0': 'equals',
+      'value0-0-0': '+',
+      'changed_field': 'Resolution',
+      'changed_field_to': 'FIXED',
+      'changed_after': '2012-11-04',
+      'changed_before': '2012-11-10',
+      'keywords': 'smoketest',
+    })
+
+    addCountItem('Open Feature Blockers', 'featureBlockerCount', {
+      'bug_status': ["NEW", "UNCONFIRMED", "READY", "ASSIGNED", "REOPENED"],
+      'field0-0-0': 'cf_blocking_basecamp',
+      'type0-0-0': 'equals',
+      'value0-0-0': '+',
+      'keywords': 'feature',
+    })
+    addCountItem('Workweek Feature Blockers Fixed', 'featureBlockersFixed', {
+      'bug_status': ['RESOLVED', 'VERIFIED'],
+      'resolution': 'FIXED',
+      'field0-0-0': 'cf_blocking_basecamp',
+      'type0-0-0': 'equals',
+      'value0-0-0': '+',
+      'changed_field': 'Resolution',
+      'changed_field_to': 'FIXED',
+      'changed_after': '2012-11-04',
+      'changed_before': '2012-11-10',
+      'keywords': 'feature',
+    })
+
+    addCountItem('Open Dogfood Blockers', 'dogfoodBlockerCount', {
+      'bug_status': ["NEW", "UNCONFIRMED", "READY", "ASSIGNED", "REOPENED"],
+      'field0-0-0': 'cf_blocking_basecamp',
+      'type0-0-0': 'equals',
+      'value0-0-0': '+',
+      'keywords': 'unagi,b2g-testdriver',
+    })
+    addCountItem('Workweek Dogfood Blockers Fixed', 'dogfoodBlockersFixed', {
+      'bug_status': ['RESOLVED', 'VERIFIED'],
+      'resolution': 'FIXED',
+      'field0-0-0': 'cf_blocking_basecamp',
+      'type0-0-0': 'equals',
+      'value0-0-0': '+',
+      'changed_field': 'Resolution',
+      'changed_field_to': 'FIXED',
+      'changed_after': '2012-11-04',
+      'changed_before': '2012-11-10',
+      'keywords': 'unagi,b2g-testdriver',
+    })
+
+    addCountItem('Blockers Fixed Last 24hrs', 'blockersFixedLastDay', {
+      'bug_status': ['RESOLVED', 'VERIFIED'],
+      'resolution': 'FIXED',
+      'field0-0-0': 'cf_blocking_basecamp',
+      'type0-0-0': 'equals',
+      'value0-0-0': '+',
+      'changed_field': 'Resolution',
+      'changed_field_to': 'FIXED',
+      'changed_after': '-1d',
+    })
+    addCountItem('Blockers Fixed Last 7 Days', 'blockersFixedLastWeek', {
+      'bug_status': ['RESOLVED', 'VERIFIED'],
+      'resolution': 'FIXED',
+      'field0-0-0': 'cf_blocking_basecamp',
+      'type0-0-0': 'equals',
+      'value0-0-0': '+',
+      'changed_field': 'Resolution',
+      'changed_field_to': 'FIXED',
+      'changed_after': '-7d',
+    })
+
+    addCountItem('Workweek P1 Blockers Fixed', 'workweekP1BlockersFixed', {
+      'bug_status': ['RESOLVED', 'VERIFIED'],
+      'resolution': 'FIXED',
+      'field0-0-0': 'cf_blocking_basecamp',
+      'type0-0-0': 'equals',
+      'value0-0-0': '+',
+      'changed_field': 'Resolution',
+      'changed_field_to': 'FIXED',
+      'changed_after': '2012-11-04',
+      'changed_before': '2012-11-10',
+      'priority': 'P1',
+    })
+    addCountItem('Workweek non-P1 Blockers Fixed', 'workweekNonP1BlockersFixed', {
+      'bug_status': ['RESOLVED', 'VERIFIED'],
+      'resolution': 'FIXED',
+      'field0-0-0': 'cf_blocking_basecamp',
+      'type0-0-0': 'equals',
+      'value0-0-0': '+',
+      'changed_field': 'Resolution',
+      'changed_field_to': 'FIXED',
+      'changed_after': '2012-11-04',
+      'changed_before': '2012-11-10',
+      'field0-1-0': 'priority',
+      'type0-1-0': 'not_equals',
+      'value0-1-0': 'P1',
+    })
+
+  })
+
+  function addCountItem(title, key, searchOptions) {
+    packStackAndRack(key, function(result) {
+      if (0 && result) {
+        self.emit('data', {title: title, count: result})
+      }
+      else {
+        Bugzilla.ajax({
+          url: "/count",
+          data: searchOptions,
+          success: function(data) {
+            asyncStorage.setItem(key, data.data, function(){})
+            self.emit('data', {
+              key: key,
+              title: title,
+              count: data.data
+            })
+          },
+          error: function(err) {
+            console.log('err', err)
+          }
+        })
+      }
+    })
+  }
+
+  self.on('data', function onData(msg) {
+    if (msg.title && msg.count != null)
+      addCard(msg.title, msg.count)
+  })
+
+  self.on('feedback', function progress(msg) {
+    var feedback = document.querySelector('#feedback')
+    if (!msg)
+      feedback.innerHTML = ''
+    else
+      feedback.innerHTML = "<img src='http://www.fbi.gov/spinner.gif'><br>" + msg
+  })
+
+  self.on('display', function progress(msg) {
+    console.log(msg.results[0])
+    var users = getUsersOfBlockers(msg.results)
+    users.every(function(person) {
+      var node = $("#templates .entry").clone();
+      node.find(".blockersGraph").attr("id", "blockersGraph-" + person.name);
+      node.find(".nonblockersGraph").attr("id", "nonblockersGraph-" + person.name);
+      node.find(".name").text(person.name);
+
+      var dashboard = node.find("a.dashboard");
+      dashboard.attr("href", dashboard.attr("href") + person.email);
+
+      var timerecord = node.find("a.timerecord");
+      timerecord.attr("href", timerecord.attr("href") + person.email);
+
+      var twitterPortrait = new Image();
+      twitterPortrait.src = "http://static.twitter.com/images/default_profile_bigger.png";
+      node.find(".portrait").append(twitterPortrait);
+
+      $("#content").append(node);
+   
+      var renderer = makeRenderer(node, person);
+   
+      getActivity(person.email, WEEKS_BACK, renderer);
+      return false
+    });
+  })
+
+  function addCard(title, count) {
+    var template = '<div class="card" title="{{title}}"><h1>{{count}}</h1><h3>{{title}}</h3></div>'
+    document.querySelector('#content').innerHTML += Mustache.to_html(template, {
+      count: count,
+      title: title
+    })
+  }
+
+  function packStackAndRack(key, callback) {
+    asyncStorage.getItem(key, function(result) {
+      callback(result)
+    })
+  }
+
+</script> 
+
+
+
+<div id='header'>
+  <h2>FirefoxOS.Workweek.SF.2012</h2>
+</div>
+
+<div id='feedback' style='text-align: center;'></div>
+
+<div id="content"></div>
+
+
+<script>
+  var NUM = 50;
+  for(var i=0;i<NUM;i++){
+   var ray = document.createElement("div");
+   ray.className = "ray";
+   ray.style.MozTransform = "rotate(%deg)".replace("%", i*360/NUM);
+   document.body.appendChild(ray);
+  }
+</script>

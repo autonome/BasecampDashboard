@@ -1,0 +1,117 @@
+<!DOCTYPE html> 
+<meta charset="utf-8"> 
+<title>cardiac</title> 
+<style> 
+  body {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 9pt;
+    margin: 0 auto;
+    /*
+    background-image: -moz-radial-gradient(center 45deg, circle closest-side, #fff 0%, #DDD 140%);
+    background-attachment: fixed;
+    */
+    background-color: #fff;
+  }
+
+  #content {
+    margin-top: 4em;
+    margin-left: auto ;
+    margin-right: auto ;
+    padding: 1em;
+  }
+
+  .card {
+    width: 30em;
+    height: 15em;
+    margin: .5em;
+    background-color: #fff;
+    box-shadow: 3px 3px 6px rgba(0, 0, 0, 0.2);
+    /*border: 0.05em solid #ccc;*/
+  }
+
+  /*
+  .ray {
+    background-color:  rgba(255,255,255,.1);
+    width: 150%;
+    height: 10px;
+    position:  fixed;
+    top:  50%;
+    left:  -25%;
+    -moz-transform: 
+    -moz-transform-origin: 100% 50%;
+    z-index: -1;
+  }
+  */
+</style> 
+<link rel="stylesheet" href="tipsy.css" type="text/css"/> 
+<script type='text/javascript' src='jquery-1.8.2.min.js'></script>
+<script type='text/javascript' src="jquery.tipsy.js"></script> 
+<script type='text/javascript' src="bugzilla.js"></script> 
+<script type='text/javascript' src="date-utils.js"></script> 
+<script type="text/javascript" src="mustache.js" ></script>
+<script type="text/javascript" src="asyncStorage.js" ></script>
+<script type="text/javascript" src="eventEmitter.js" ></script>
+<script type='text/javascript' src="protovis-r3.2.js"></script> 
+<script type='text/javascript' src="protovis.tipsy.js"></script> 
+<script type='text/javascript' src="team.js"></script> 
+<script> 
+  // add event emitter to window scope
+  var self = this
+  EventEmitter.call(self)
+
+  $(window).ready(function() {
+  })
+
+  self.on('feedback', function progress(msg) {
+    var feedback = document.querySelector('#feedback')
+    if (!msg)
+      feedback.innerHTML = ''
+    else
+      feedback.innerHTML = "<img src='http://www.fbi.gov/spinner.gif'><br>" + msg
+  })
+
+  self.on('display', function progress(msg) {
+    console.log(msg.results[0])
+    var users = getUsersOfBlockers(msg.results)
+    users.every(function(person) {
+      var node = $("#templates .entry").clone();
+      node.find(".blockersGraph").attr("id", "blockersGraph-" + person.name);
+      node.find(".nonblockersGraph").attr("id", "nonblockersGraph-" + person.name);
+      node.find(".name").text(person.name);
+
+      var dashboard = node.find("a.dashboard");
+      dashboard.attr("href", dashboard.attr("href") + person.email);
+
+      var timerecord = node.find("a.timerecord");
+      timerecord.attr("href", timerecord.attr("href") + person.email);
+
+      var twitterPortrait = new Image();
+      twitterPortrait.src = "http://static.twitter.com/images/default_profile_bigger.png";
+      node.find(".portrait").append(twitterPortrait);
+
+      $("#content").append(node);
+   
+      var renderer = makeRenderer(node, person);
+   
+      getActivity(person.email, WEEKS_BACK, renderer);
+      return false
+    });
+  })
+
+</script> 
+
+<div id='feedback' style='text-align: center;'></div>
+<div id="content">
+  <div class='card'>
+  </div>
+</div>
+
+<script>
+  var NUM = 50;
+  for(var i=0;i<NUM;i++){
+   var ray = document.createElement("div");
+   ray.className = "ray";
+   ray.style.MozTransform = "rotate(%deg)".replace("%", i*360/NUM);
+   document.body.appendChild(ray);
+  }
+</script>
