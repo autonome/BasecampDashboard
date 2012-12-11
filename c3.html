@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Basecamp Blockers</title>
+  <title>C3 Blockers</title>
   <link rel="stylesheet" href="bootstrap.min.css">
   <script type='text/javascript' src='jquery-1.7.1.min.js'></script>
   <script type='text/javascript' src='jquery.isotope.min.js'></script>
@@ -84,7 +84,7 @@
 </head>
 <body>
   <div>
-    <h1>Basecamp Blockers</h1>
+    <h1>C3 Blockers</h1>
   </div>
   <div id="controls"><input type="checkbox" id="loe"><label>bugs w/o LOE estimate</label></div>
   <br clear="all">
@@ -100,12 +100,13 @@
 var main = document.querySelector('.main')
 var feedback = document.querySelector('#feedback')
 
-// bugzilla search options for all basecamp+ bugs
+// bugzilla search options for all basecamp+ bugs targeting c3
 var defaultSearchOpts = {
   'bug_status': ["NEW", "UNCONFIRMED", "ASSIGNED", "REOPENED"],
   'field0-0-0': 'cf_blocking_basecamp',
   'type0-0-0': 'equals',
-  'value0-0-0': '+'
+  'value0-0-0': '+',
+  'target_milestone': 'B2G C3 (12dec-1jan)'
 }
 
 // bugzilla search options for all basecamp+ bugs without LOE estimates
@@ -250,12 +251,14 @@ reload({})
 
 </script>
 
+<!--
 <pre>
 - cache data, reload on timer
 - move LOE filter to work on local data
 - filter on feature vs bug
 - stats across top (total blockers, total github, total bugzilla, % estimated total and for each)
 </pre>
+-->
 
 </body>
 </html>

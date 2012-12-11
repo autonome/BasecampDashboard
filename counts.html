@@ -17,14 +17,21 @@
     margin: 1em;
   }
 
-  #content {
-    margin-top: 4em;
+  #container {
+    margin-top: 2em;
     margin-left: auto ;
     margin-right: auto ;
   }
 
+  #content {
+    margin: 1em;
+    /*border: 1px solid silver;*/
+    float: left;
+    /*max-width: 900px;*/
+  }
+
   .card {
-    width: 30em;
+    width: 23em;
     height: 15em;
     margin: 1em;
     background-color: #fff;
@@ -132,7 +139,7 @@
   $(window).ready(function() {
 
     addBugzillaItem('Open Blockers', 'blockerCount', {
-      'bug_status': ["NEW", "UNCONFIRMED", "READY", "ASSIGNED", "REOPENED"],
+      'bug_status': ['NEW', 'UNCONFIRMED', 'READY', 'ASSIGNED', 'REOPENED'],
       'field0-0-0': 'cf_blocking_basecamp',
       'type0-0-0': 'equals',
       'value0-0-0': '+',
@@ -154,7 +161,7 @@
     */
 
     addBugzillaItem('Open Smoketest Blockers', 'smoketestBlockerCount', {
-      'bug_status': ["NEW", "UNCONFIRMED", "READY", "ASSIGNED", "REOPENED"],
+      'bug_status': ['NEW', 'UNCONFIRMED', 'READY', 'ASSIGNED', 'REOPENED'],
       'keywords': 'smoketest',
       'product': 'boot2gecko',
       'field0-0-0': 'cf_blocking_basecamp',
@@ -163,7 +170,7 @@
     })
 
     addBugzillaItem('Open Feature Blockers', 'featureBlockerCount', {
-      'bug_status': ["NEW", "UNCONFIRMED", "READY", "ASSIGNED", "REOPENED"],
+      'bug_status': ['NEW', 'UNCONFIRMED', 'READY', 'ASSIGNED', 'REOPENED'],
       'field0-0-0': 'cf_blocking_basecamp',
       'type0-0-0': 'equals',
       'value0-0-0': '+',
@@ -171,7 +178,7 @@
     })
 
     addBugzillaItem('Open Dogfood Blockers', 'dogfoodBlockerCount', {
-      'bug_status': ["NEW", "UNCONFIRMED", "READY", "ASSIGNED", "REOPENED"],
+      'bug_status': ['NEW', 'UNCONFIRMED', 'READY', 'ASSIGNED', 'REOPENED'],
       'field0-0-0': 'cf_blocking_basecamp',
       'type0-0-0': 'equals',
       'value0-0-0': '+',
@@ -210,6 +217,53 @@
       url: 'http://spreadsheets.google.com/feeds/cells/0Ajt_meMlK3MOdHphdnV2a2RvcU9MZmd3cDlIQnZBMVE/1/public/values?alt=json-in-script',
       row: 6,
       column: 2
+    })
+
+    addBugzillaItem('Open C3 Blockers', 'openC3BlockerCount', {
+      'bug_status': ['NEW', 'UNCONFIRMED', 'READY', 'ASSIGNED', 'REOPENED'],
+      'field0-0-0': 'cf_blocking_basecamp',
+      'type0-0-0': 'equals',
+      'value0-0-0': '+',
+      'target_milestone': 'B2G C3 (12dec-1jan)',
+    })
+
+    addBugzillaItem('P1 C3 Blockers Fixed Last 7 Days', 'P1C2BlockersFixedLastWeek', {
+      'bug_status': ['RESOLVED', 'VERIFIED'],
+      'resolution': 'FIXED',
+      'field0-0-0': 'cf_blocking_basecamp',
+      'type0-0-0': 'equals',
+      'value0-0-0': '+',
+      'priority': 'P1',
+      'target_milestone': 'B2G C3 (12dec-1jan)',
+      'changed_field': 'Resolution',
+      'changed_field_to': 'FIXED',
+      'changed_after': '-7d',
+    })
+
+    addBugzillaItem('P2 C3 Blockers Fixed Last 7 Days', 'P2C2BlockersFixedLastWeek', {
+      'bug_status': ['RESOLVED', 'VERIFIED'],
+      'resolution': 'FIXED',
+      'field0-0-0': 'cf_blocking_basecamp',
+      'type0-0-0': 'equals',
+      'value0-0-0': '+',
+      'priority': 'P2',
+      'target_milestone': 'B2G C3 (12dec-1jan)',
+      'changed_field': 'Resolution',
+      'changed_field_to': 'FIXED',
+      'changed_after': '-7d',
+    })
+
+    addBugzillaItem('P3 C3 Blockers Fixed Last 7 Days', 'P3C2BlockersFixedLastWeek', {
+      'bug_status': ['RESOLVED', 'VERIFIED'],
+      'resolution': 'FIXED',
+      'field0-0-0': 'cf_blocking_basecamp',
+      'type0-0-0': 'equals',
+      'value0-0-0': '+',
+      'priority': 'P3',
+      'target_milestone': 'B2G C3 (12dec-1jan)',
+      'changed_field': 'Resolution',
+      'changed_field_to': 'FIXED',
+      'changed_after': '-7d',
     })
   })
 
@@ -303,26 +357,20 @@
     })
   }
 
-  function packStackAndRack(key, callback) {
-    asyncStorage.getItem(key, function(result) {
-      callback(result)
-    })
-  }
-
 </script> 
 
-
-
 <div id='header'>
-  <h2>FirefoxOS.Workweek.SF.2012</h2>
+  <h2>FirefoxOS.Status (Live)</h2>
 </div>
 
-<div id='feedback' style='text-align: center;'></div>
+<div id='container'>
+  <div id='feedback' style='text-align: center;'></div>
 
-<div id="content"></div>
-
+  <div id="content"></div>
+</div>
 
 <script>
+/*
   var NUM = 50;
   for(var i=0;i<NUM;i++){
    var ray = document.createElement("div");
@@ -330,4 +378,5 @@
    ray.style.MozTransform = "rotate(%deg)".replace("%", i*360/NUM);
    document.body.appendChild(ray);
   }
+*/
 </script>

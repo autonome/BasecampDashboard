@@ -1,4 +1,3 @@
-/*
 // helper for seaching bugzilla
 function bugSearch(type) {
   this.type = type
@@ -12,7 +11,7 @@ bugSearch.prototype = {
       success: function(data) {
         callback(data.data || data.bugs);
       }
-    });
+    })
   }
 }
 
@@ -41,10 +40,9 @@ issueSearch.prototype = {
     driver()
   }
 }
-*/
 
 // window.JSONP - http://oscargodson.com/posts/unmasking-jsonp.html
-(function(window, undefined) {
+//(function(window, undefined) {
   var JSONP = function(url, method, callback){
     url = url || '';
     method = method || '';
@@ -70,7 +68,7 @@ issueSearch.prototype = {
     document.getElementsByTagName("head")[0].appendChild(jsonpScript);
   }
   window.JSONP = JSONP;
-})(window)
+//})(window)
 
 // Google Spreadsheet API helper
 function getGoogleSpreadsheetData(url, callback) {
@@ -96,5 +94,63 @@ function getGoogleSpreadsheetCellValue(url, row, col, callback) {
     if (data[row] && data[row][col])
       val = data[row][col]
     callback(val)
+  })
+}
+
+function packStackAndRack(key, callback, expirationSeconds) {
+  asyncStorage.getItem(key, function(result) {
+    callback(result)
+  })
+}
+
+// Useless, since can't get login name from un-authenticated API
+// calls, only real_name and name, neither of which are query-able
+// via that same API.
+function getUsersOfBugs(bugQueryResults) {
+  var names = [] 
+  var people = []
+  bugQueryResults.forEach(function(bug, i) {
+    if (names.indexOf(bug.assigned_to.name) == -1) {
+      people.push(bug.assigned_to)
+      names.push(bug.assigned_to.name)
+    }
+  })
+  return people;
+}
+
+// only works if authenticated
+function getEmailForRealName(realName, callback) {
+  Bugzilla.ajax({
+    url: "/user",
+    data: {
+      'match': realName
+    },
+    success: function(data) {
+      console.log('matches', data)
+    },
+    error: function(err) {
+      console.log('user query err', err)
+    }
+  })
+}
+
+function fetchAndCacheAllOpenBlockers(searchOpts, callback) {
+  // update user feedback to indicate progress
+  self.emit('feedback', 'Searching Bugzilla...')
+
+  var results = []
+
+  var searchOpenBasecampBlockers = {
+    'bug_status': ['NEW', 'UNCONFIRMED', 'READY', 'ASSIGNED', 'REOPENED'],
+    'field0-0-0': 'cf_blocking_basecamp',
+    'type0-0-0': 'equals',
+    'value0-0-0': '+'
+  }
+  new bugSearch('bug').fetch(searchOpenBasecampBlockers, function(results) {
+    asyncStorage.setItem('lastUpdated', new Date(), function(){})
+    asyncStorage.setItem('results', results, function(){})
+
+    self.emit('feedback', '')
+    self.emit('display', {results: results})
   })
 }
