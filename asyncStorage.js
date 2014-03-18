@@ -51,6 +51,7 @@ this.asyncStorage = (function() {
     if (db) {
       f(db.transaction(STORENAME, type).objectStore(STORENAME));
     } else {
+      window.indexedDB = window.indexedDB || window.mozIndexedDB;
       var openreq = indexedDB.open(DBNAME, DBVERSION);
       openreq.onerror = function withStoreOnError() {
         console.error("asyncStorage: can't open database:", openreq.error.name);

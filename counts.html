@@ -160,6 +160,18 @@
     })
     */
 
+    addBugzillaItem('Workweek Blockers Fixed (SUNDAY)', 'workweekBlockersFixedSunday', {
+      'bug_status': ['RESOLVED', 'VERIFIED'],
+      'resolution': 'FIXED',
+      'field0-0-0': 'cf_blocking_basecamp',
+      'type0-0-0': 'equals',
+      'value0-0-0': '+',
+      'changed_field': 'Resolution',
+      'changed_field_to': 'FIXED',
+      'changed_after': '2013-01-06 00:00:00',
+      'changed_before': '2013-01-07 00:00:00',
+    })
+
     addBugzillaItem('Open Smoketest Blockers', 'smoketestBlockerCount', {
       'bug_status': ['NEW', 'UNCONFIRMED', 'READY', 'ASSIGNED', 'REOPENED'],
       'keywords': 'smoketest',
@@ -194,6 +206,17 @@
       'changed_field': 'Resolution',
       'changed_field_to': 'FIXED',
       'changed_after': '-1d',
+    })
+
+    addBugzillaItem('Blockers Fixed Last 1hr', 'blockersFixedLastHour', {
+      'bug_status': ['RESOLVED', 'VERIFIED'],
+      'resolution': 'FIXED',
+      'field0-0-0': 'cf_blocking_basecamp',
+      'type0-0-0': 'equals',
+      'value0-0-0': '+',
+      'changed_field': 'Resolution',
+      'changed_field_to': 'FIXED',
+      'changed_after': '-1h',
     })
 
     addBugzillaItem('Blockers Fixed Last 7 Days', 'blockersFixedLastWeek', {

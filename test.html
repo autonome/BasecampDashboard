@@ -2,9 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Basecamp Blockers</title>
-  <link rel="stylesheet" href="/bootstrap/bootstrap.min.css">
-  <link rel="stylesheet" type="text/css" href="style/headers.css"/>
+  <title>Faceted Bugzilla</title>
   <script type='text/javascript' src='jquery-1.8.2.min.js'></script>
   <script type='text/javascript' src='jquery.isotope.min.js'></script>
   <script type="text/javascript" src="bugzilla.js"></script> 
@@ -18,510 +16,116 @@
   -->
   <style>
 
-    @font-face {
-      font-family: 'FontLight';
-      src: local('Open Sans Light'), url('fonts/opensans-light-webfont.woff') format('woff');
-    }
-    @font-face {
-      font-family: 'FontRegular';
-      src: local('Open Sans'), url('fonts/opensans-regular-webfont.woff') format('woff');
-    }
-    @font-face {
-      font-family: 'FontSemibold';
-      src: local('Open Sans Semibold'), url('fonts/opensans-semibold-webfont.woff') format('woff');
-    }
-    @font-face {
-      font-family: 'FontBold';
-      src: local('Open Sans Bold'), url('fonts/opensans-bold-webfont.woff') format('woff');
-    }
-
     body{
       margin: 0;
       padding: 0
-    }
-
-    body {
       font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
       font-size: 9pt;
-      background-image: -moz-radial-gradient(center 45deg, circle closest-side, #fff 0%, #DDD 140%);
+      background-image: -moz-radial-gradient(center 45deg, circle closest-side, #fff 0%, yellow 500%);
       background-attachment: fixed;
       text-align: left;
     }
 
+    #filters {
+      float: left;
+      max-width: 20em;
+      border: 1px solid black;
+    }    
+
     #content {
+      border: 1px solid red;
+      min-width: 80em;
+      float: left;
     }
 
-    .widget {
+    .item {
       text-align: center;
       width: 15em;
       margin: 10px;
       border-radius: 0.5em;
       background: rgba(0, 0, 0, 0.1);
-      overflow: hidden;
-    }
-
-    .bugCount {
       text-align: center;
-      height: 10em;
-      padding-top: 2em;
+      min-width: 10em;
+      min-height: 5em;
+      margin: 2em;
     }
 
-    .bugCount > h1 {
-      font-size: 6em;
-    }
-    
-    .bug {
-      min-height: 6em;
-    }
-
-    /**** Isotope filtering ****/
+    /**** Isotope Filtering ****/
 
     .isotope-item {
       z-index: 2;
     }
 
-    .isotope-hidden.isotope-item {
+    .isotope-hidden, .isotope-item {
       pointer-events: none;
       z-index: 1;
     }
 
+    /**** Isotope CSS3 transitions ****/
+
+    .isotope,
+    .isotope .isotope-item {
+      -webkit-transition-duration: 0.8s;
+         -moz-transition-duration: 0.8s;
+          -ms-transition-duration: 0.8s;
+           -o-transition-duration: 0.8s;
+              transition-duration: 0.8s;
+    }
+
+    .isotope {
+      -webkit-transition-property: height, width;
+         -moz-transition-property: height, width;
+          -ms-transition-property: height, width;
+           -o-transition-property: height, width;
+              transition-property: height, width;
+    }
+
+    .isotope .isotope-item {
+      -webkit-transition-property: -webkit-transform, opacity;
+         -moz-transition-property:    -moz-transform, opacity;
+          -ms-transition-property:     -ms-transform, opacity;
+           -o-transition-property:      -o-transform, opacity;
+              transition-property:         transform, opacity;
+    }
+
   </style>
 </head>
-<body role="application">
-  <section role="region">
-  <header>
-    <h1>Basecamp Blockers</h1>
-  </header>
-  </section>
-  <div class="main container-fluid">
-    <div class="row-fluid">
-      <div id="sidebar" class="span2">
-         <!--Sidebar content-->
-        <div id="controls">
-          <span>bugs w/o LOE estimate</span>
-          <input type="checkbox" id="loe">
-        </div>
-        <br>
+<body>
 
-        <div id='controls2'>
-          <ul id="filters">
-            <li><a href="#" onclick="onFilterClick(this)" data-filter="*">show all</a></li>
-          </ul>
-        </div>
-      </div>
+  <input type="text" id="input" value='sw:ffos_perf'></input>
+  <br clear=all>
 
-      <div id="content" class="span10">
-         <!--Body content-->
-        <br clear="all">
-        <div id='feedback' style='text-align: center;'></div>
-        <br clear="all">
-        <div id='summary' style='text-align: center;'></div>
-        <br clear="all">
-        <div id="container"></div>
-      </div>
-    </div>
+  <div id='filters'>
+  </div>
 
+  <div id="content" class="span10">
+    <br clear="all">
+    <div id='feedback' style='text-align: center;'></div>
+    <br clear="all">
+    <div id='summary' style='text-align: center;'></div>
+    <br clear="all">
+    <div id="container"></div>
   </div>
 
 <script>
-
-/*
-
-- on load, fetch all basecamp blockers from bugzilla and github
-- after results are collected, store in asyncStorage.results, update asyncStorage.lastUpdated and emit dataAvailable
-- on dataAvailable, display results
-- on a timer, check if lastUpdated is >5mins, reload data if so
-
-*/
-
-// every checkInterval minutes, check if the lastUpdated value is >updateInterval
-// checkInterval is 1 minute
-// updateInterval is 5 minutes
-var checkInterval = 1 * 60 * 1000
-var updateInterval = 5 * 60 * 1000
 
 // events setup
 var self = this
 EventEmitter(self)
 
-// firebase setup
-var remote = new Firebase('https://mozilla.firebaseio.com/workweek');
-
-
-// bugzilla search options for all basecamp+ bugs
-var defaultSearchOpts = {
-  'bug_status': ["NEW", "UNCONFIRMED", "ASSIGNED", "REOPENED"],
-  'field0-0-0': 'cf_blocking_basecamp',
-  'type0-0-0': 'equals',
-  'value0-0-0': '+'
-}
-
-// helper for seaching bugzilla
-function bugSearch(type) {
-  this.type = type
-}
-bugSearch.prototype = {
-  fetch: function(options, callback) {
-    var url = (this.type == 'bug') ? '/bug' : '/count';
-    Bugzilla.ajax({
-      url: url,
-      data: options,
-      success: function(data) {
-        callback(data.data || data.bugs);
-      }
-    });
-  }
-}
-
-// helper for searching github
-function issueSearch() {
-}
-issueSearch.prototype = {
-  fetch: function(options, callback) {
-    Github.user = 'mozilla-b2g'
-    Github.repo = 'gaia'
-
-    var results = []
-    options.page = 1
-
-    function driver() {
-      Github.search(options, function(someResults) {
-        if (someResults.length) {
-          results = results.concat(someResults)
-          options.page++
-          setTimeout(driver, 0)
-        }
-        else
-          callback(results)
-      })
+function bs(options, callback) {
+  Bugzilla.ajax({
+    url: '/bug',
+    data: options,
+    success: function(data) {
+      var result = data.bugs || data.data
+      callback(result)
+    },
+    error: function(err) {
+      console.log('err', err)
     }
-    driver()
-  }
-}
-
-// user feedback message with spinner
-// pass empty string to clear
-self.on('feedback', function progress(msg) {
-  var feedback = document.querySelector('#feedback')
-  if (!msg)
-    feedback.innerHTML = ''
-  else
-    feedback.innerHTML = "<img src='http://www.fbi.gov/spinner.gif'><br>" + msg
-})
-
-// fetch data from servers, emit dataAvailable upon complete
-// results are written to asyncStorage with key 'results'
-function fetchAll(searchOpts, handleResults) {
-  // update user feedback to indicate progress
-  self.emit('feedback', 'Searching Bugzilla...')
-
-  var results = []
-
-  new bugSearch('bug').fetch(defaultSearchOpts, function(results) {
-    self.emit('feeback', 'Searched Bugzilla, now searching Github...')
-
-    // test data
-    //results = bugzillaData
-    //githubResults = githubData
-
-    // now do github search
-    var issuesOptions = {
-      per_page: 100,
-      state: 'open',
-      labels: 'blocking-basecamp+'
-    }
-
-    new issueSearch().fetch(issuesOptions, function(githubResults) {
-
-      /*
-      if (searchOpts.noLOE) {
-        githubResults = githubResults.filter(function(issue) {
-          return issue.labels.every(function(label) {
-            return !(/\[LOE:/.test(label.name));
-          })
-        })
-      }
-      */
-
-      results = results.concat(githubResults)
-
-      asyncStorage.setItem('lastUpdated', new Date(), function(){})
-      asyncStorage.setItem('results', results, function(){})
-
-      self.emit('feedback', '')
-      self.emit('displayIssues')
-    })
   })
 }
-
-// update UI when there's new data or changed configuration
-self.on('dataAvailable', function display() {
-  self.emit('feedback', 'Updating UI...')
-  asyncStorage.getItem('results', function(results) {
-
-    if (!results) {
-      self.emit('feedback', 'no results')
-      return
-    }
-
-    var content = document.querySelector('#content')
-
-    // remove previous container
-    content.removeChild(document.querySelector('#container'))
-
-    // create new container
-    var container = document.createElement('div')
-    container.setAttribute('id', 'container')
-    content.appendChild(container)
-
-    // aggregate bugs per user
-    var names = {}
-    var i = 0
-    results.forEach(function(bug) {
-      // convert github to bugzilla
-      if (bug.user) {
-        bug.assigned_to = bug.assignee || (bug.assignee = {login:'No one'})
-        bug.assigned_to.name = bug.assignee.login
-        bug.assigned_to.real_name = bug.assignee.login
-        bug.searchURL = 'https://github.com/mozilla-b2g/gaia/issues/assigned/' + encodeURIComponent(bug.assignee.login) + '?labels=blocking-basecamp%2B&state=open'
-      }
-      else
-        bug.searchURL = 'https://bugzilla.mozilla.org/buglist.cgi?quicksearch=@' + encodeURIComponent(bug.assigned_to.name) + ' blocking-basecamp:%2b'
-
-      // LOE
-      if (document.querySelector('#loe').checked) {
-        var hasLOE = bug.user ?
-          bug.labels.every(function(label) {
-            return !(/\[LOE:/.test(label.name))
-          }) : !(/\[LOE:/.test(bug.whiteboard))
-        if (!hasLOE)
-          return
-      }
-
-      bug.nameKey = bug.assigned_to.name
-
-      if (!names[bug.nameKey]) {
-        names[bug.nameKey] = { user: bug.assigned_to, count: 1, bugs: [bug]}
-      }
-      else {
-        names[bug.nameKey].count++
-        names[bug.nameKey].bugs.push(bug)
-        names[bug.nameKey].searchURL = bug.searchURL
-      }
-      i++
-    });
-
-    // show number of results at top
-    document.querySelector('#summary').innerHTML = i + ' Results';
-
-    var container = document.querySelector('#container')
-
-    // generate content for each result, add to main container
-    for (var name in names) {
-      var template =
-        "<div class='widget' id='{{_id}}'>"
-          + "<div class='bugCount'>"
-            + "<h1>{{count}}</h1><br clear=all>"
-            + "<a href='{{url}}' target='new'>"
-              + "<div>{{title}}</div>"
-            + "</a>"
-          + "</div>"
-        + "</div>";
-      container.innerHTML += Mustache.to_html(template, {
-        url: names[name].searchURL,
-        count: names[name].count,
-        title: name
-      });
-    }
-
-    // isotope (verb)
-    $('#container').isotope({
-      itemSelector : '.widget',
-      sortBy : 'bugCount',
-      sortAscending : false,
-      layoutMode : 'fitRows',
-      getSortData : {
-        bugCount : function ( $elem ) {
-          return parseInt($elem.find('.bugCount').text(), 10);
-        }
-      }
-    });
-
-    self.emit('feedback', '')
-  })
-})
-
-self.on('displayIssues', function display() {
-  self.emit('feedback', 'Updating UI...')
-  asyncStorage.getItem('results', function(results) {
-
-    /*
-    var labelNames = [
-      'FM Radio',
-      'Keyboard & IME',
-      'browser',
-      'bluetooth',
-      'calculator',
-      'calendar',
-      'camera',
-      'clock',
-      'contacts',
-      'dialer',
-      'email',
-      'gallery',
-      'homescreen',
-      'market',
-      'music',
-      'payments',
-      'settings',
-      'sms',
-      'system',
-      'system/card_view',
-      'system/list_menu',
-      'system/lockscreen',
-      'system/notification',
-      'system/quick_settings',
-      'system/statusbar',
-      'system/trusted_dialog',
-      'system/utility_tray',
-      'system/window_management',
-      'video'
-    ]
-    */
-
-    var labels = {}
-    /*
-    labelNames.forEach(function(label, i) {
-      labels[label] = {
-        count: 0,
-        id: 'label' + i
-      }
-    })
-    */
-
-    if (!results) {
-      self.emit('feedback', 'no results')
-      return
-    }
-
-    var content = document.querySelector('#content')
-
-    // remove previous container
-    content.removeChild(document.querySelector('#container'))
-
-    // create new container
-    var container = document.createElement('div')
-    container.setAttribute('id', 'container')
-    content.appendChild(container)
-
-    // show number of results at top
-    document.querySelector('#summary').innerHTML = results.length + ' Results';
-
-    // aggregate bugs per app label
-    results.forEach(function(bug) {
-      // convert github to bugzilla
-      if (bug.user) {
-        bug.assigned_to = bug.assignee || (bug.assignee = {login:'No one'})
-        bug.assigned_to.name = bug.assignee.login
-        bug.assigned_to.real_name = bug.assignee.login
-        bug.searchURL = 'https://github.com/mozilla-b2g/gaia/issues/assigned/' + encodeURIComponent(bug.assignee.login) + '?labels=blocking-basecamp%2B&state=open'
-      }
-      else
-        bug.searchURL = 'https://bugzilla.mozilla.org/buglist.cgi?quicksearch=@' + encodeURIComponent(bug.assigned_to.name) + ' blocking-basecamp:%2b'
-
-      // process github issues
-      if (bug.user) {
-        var labelSelectors = []
-        bug.labels.forEach(function(label) {
-          // LOE estimates
-          if (/\[LOE:/.test(label.name)) {
-            bug.loe = label.name.substr(-2, 1)
-          }
-
-          if (!labels[label.name])
-            labels[label.name] = { count: 0, id: 'label' + labels.length }
-
-          if (labels[label.name]) {
-            labels[label.name].count++
-            labelSelectors.push(labels[label.name].id)
-          }
-        })
-        bug.labelString = labelSelectors.join(' ')
-      }
-      // process bugzilla items
-      else if(/\[LOE:/.test(bug.whiteboard)) {
-        bug.loe = bug.whiteboard.substr(bug.whiteboard.indexOf('LOE:')+1, 1)
-      }
-
-      // generate content for each result, add to main container
-      // TODO: add LOE, labels
-      var template =
-        "<div class='widget {{classes}}' id='{{_id}}'>"
-          + "<div class='bug'>"
-            + "<a href='{{url}}' target='new'>"
-              + "<div>{{title}}</div>"
-            + "</a>"
-          + "</div>"
-        + "</div>"
-
-      container.innerHTML += Mustache.to_html(template, {
-        url: bug.html_url || 'https://bugzilla.mozilla.org/show_bug.cgi?id=' + bug.id,
-        title: (bug.summary || bug.title).substr(0, 100),
-        classes: bug.labelString
-      });
-    })
-
-    // update controls
-    var filters = document.querySelector('#filters')
-    while (filters.childNodes.length > 1)
-      filters.removeChild(filters.lastChild)
-    for (var label in labels)
-      filters.innerHTML += '<li><a href="#" onclick="onFilterClick(this)" data-filter=".' + labels[label].id + '">' + label + '</a> (' + labels[label].count + ')</li>'
-
-    // isotope (verb)
-    $('#container').isotope({
-      itemSelector : '.widget',
-      sortBy : 'bugCount',
-      sortAscending : false,
-      layoutMode : 'fitRows',
-      getSortData : {
-        bugCount : function ( $elem ) {
-          return parseInt($elem.find('.bugCount').text(), 10);
-        }
-      }
-    });
-
-    self.emit('feedback', '')
-  })
-})
-
-// initial data load
-// display cache initially. data will update within a minute.
-asyncStorage.getItem('results', function(results) {
-  if (!results || !results.length) {
-    fetchAll()
-  }
-  else
-    self.emit('displayIssues')
-})
-
-// check lastUpdated, and get fresh data if interval has been exceeded
-function driver() {
-  asyncStorage.getItem('lastUpdated', function(lastUpdated) {
-    if ((new Date()) - lastUpdated > updateInterval)
-      fetchAll()
-  })
-}
-
-setInterval(driver, checkInterval)
-
-// run driver at load, to get fresh data quickly
-//driver()
-
-// LOE checkbox
-loe.addEventListener('change', function() {
-  self.emit('displayIssues')
-})
 
 // isotope filters
 function onFilterClick(el) {
@@ -530,28 +134,124 @@ function onFilterClick(el) {
   return false
 }
 
+$("#input").keyup(function(event){
+  if (event.keyCode == 13) {
+    var search = this.value
+    doSearch(search)
+  }
+})
+
+function doSearch(str) {
+  bs({
+    quicksearch: str
+  }, function(results) {
+    var container = document.querySelector('#container')
+
+    var searchClasses = {}
+    classes.forEach(function(c) {
+      searchClasses[c] = []
+    })
+
+    container.innerHTML = ''
+
+    // helper - only add value to an array if not already there
+    function pushIfNew(arr, val) {
+      if (arr.indexOf(val) == -1)
+        arr.push(val)
+    }
+
+    // process bugs
+    results.forEach(function(bug) {
+      // array of css classes
+      // 'item' for isotope, should be a const
+      var bugClasses = ['item']
+      // iterate over bug properties
+      for (var k in bug) {
+        // handle name fields
+        if (k == 'assigned_to' || k == 'creator') {
+          pushIfNew(searchClasses[k], bug[k].name)
+          bugClasses.push(bug[k].name)
+        }
+        // keyword is array, handle special
+        else if (k == 'keywords') {
+          bug[k].forEach(function(v) {
+            pushIfNew(searchClasses[k], v)
+          })
+          bugClasses.push(bug[k])
+        }
+        // TODO: handle whiteboard flags
+        // all other supported fields (defined in classes array)
+        else if (classes.indexOf(k) != -1) {
+          pushIfNew(searchClasses[k], bug[k])
+          bugClasses.push(bug[k])
+        }
+      }
+
+      container.innerHTML += '<div class="' + bugClasses.join(' ') + '">' + bug.summary + '</div>'
+    })
+
+    // set up filters UI based on bug query results
+    var filters = document.querySelector('#filters')
+    // reset existing
+    filters.innerHTML = ''
+    for (var cl in searchClasses) {
+      // filter title
+      filters.innerHTML += '<h3>' + cl + '</h3>'
+      // list of filter values
+      var ul = document.createElement('ul')
+      filters.appendChild(ul)
+      // starting with "show all"
+      ul.innerHTML += '<li><a href="#" data-filter="*">show all</a></li>'
+      // followed by all the values
+      searchClasses[cl].forEach(function(val) {
+        ul.innerHTML += '<li><a href="#" data-filter=".' + val +'">' + val + '</a></li>'
+      })
+    }
+
+    $('#container').isotope({
+      itemSelector : '.item'
+    })
+
+    // filter items when filter link is clicked
+    $('#filters a').click(function(){
+      var selector = $(this).attr('data-filter');
+      console.log(selector)
+      $('#container').isotope({ filter: selector });
+      return false;
+    });
+
+  })
+}
+
+$(document).ready(function() {
+  if (document.location.search)
+    doSearch(document.location.search.substr(1))
+
+  document.querySelector('#input').focus()
+})
+
+var classes = [
+  //'customfields', // collect the values
+  'keywords', // aggregate the array
+  //'qa_contact' // .real_name
+  //'platform', // don't need
+  //'version',
+  'creator', // .real_name
+  //'last_change_time', // not a filter, is a sort
+  'assigned_to', // .real_name
+  'whiteboard',
+  //'creation_time',
+  'status',
+  'severity',
+  'component',
+  'product',
+  'priority',
+  'resolution',
+  //'target_milestone',
+  //'op_sys',
+]
+
 </script>
-
-<pre>
-- add view support (user as default, can choose bug)
-- add user count tracking
-- fix bug view
-- get filtering working
-- stats across top
-- add generic grouper
-
-stats (arrays in asyncStorage, keyed by date)
-- blockerCount
-- blockerCountGaia
-- blockerCountPlatform
-- userCount
-- userCountGaia
-- userCountPlatform
-- loeCount
-- loeCountS
-- loeCountM
-- loeCountL
-</pre>
 
 </body>
 </html>

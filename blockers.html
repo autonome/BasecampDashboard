@@ -1,31 +1,42 @@
 <!DOCTYPE html> 
 <meta charset="utf-8"> 
-<title>BLOCKERS!</title> 
+<title>Firefox OS Team Status</title> 
+<link href='http://fonts.googleapis.com/css?family=Open+Sans:400,300' rel='stylesheet' type='text/css'>
 <style> 
   body {
-    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-    font-size: 9pt;
+    font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    color: #f7f7f7;
     margin: 0 auto;
-    background-image: -moz-radial-gradient(center 45deg, circle closest-side, #fff 0%, #DDD 140%);
-    background-attachment: fixed;
-    text-align: center;
+    padding: 1em;
+    background-color: #545454;
   }
 
   #content {
     margin-left: auto ;
     margin-right: auto ;
-    /*
-    -moz-column-count: 3;
-    -moz-column-width: 300px;
-    -moz-column-gap: 20px;
-    */
-    -moz-background(#header);
   }
 
-  #header {
-    font-size: 36px;
-    opacity: 0.3;
-    margin: 1px;
+  .header {
+    position: relative;
+  }
+
+  .title {
+    margin: 0;
+  }
+
+  .releases {
+    position: absolute;
+    top: 0;
+    right: 0;
+    margin: 0;
+  }
+
+  .release[active=true] {
+    color:red;
+  }
+
+  .release:hover {
+    color: red;
   }
 
   #templates {
@@ -33,38 +44,38 @@
   }
     
   .entry {
-    padding: 0.5em;
     margin: 10px;
-    height: 100px;
-    width: 315px;
+    height: 148px;
+    width: 300px;
     text-align: left;
-    -moz-border-radius: 1em;
-    background: rgba(0, 0, 0, 0.1);
+    background: #717171;
     float: left;
+  }
+
+  .info {
+    font-weight: 300;
+    font-size: -1;
+    max-width: 10em;
+    float: left;
+    padding: 2px;
   }
    
   .name {
-    font-weight: bold;
-    font-size: 14pt;
-    max-width: 30px;
-  }
-   
-  .portrait {
-    float: left;
-    padding-right: 0.5em;
-    height: 73px;
-    width: 73px;
-  }
-
-  .portrait + div {
-    float: left;
+    font-weight: 300;
+    padding: 2px;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    background-color: #EFE569;
+    color: #545454;
   }
    
   .graphs {
+    font-weight: 300;
+    font-size: -1;
     float: right;
     text-align: right;
-    color: gray;
     height: 60px;
+    padding: 2px;
   }
 
   .blockersGraph, .nonblockersGraph {
@@ -77,7 +88,6 @@
   }
    
   .info {
-    color: gray;
   }
    
   a.dashboard {
@@ -93,44 +103,500 @@
     color: inherit;
   }
 
-  .ray {
-    background-color:  rgba(255,255,255,.1);
-    width: 150%;
-    height: 10px;
-    position:  fixed;
-    top:  50%;
-    left:  -25%;
-    -moz-transform: 
-    -moz-transform-origin: 100% 50%;
-    z-index: -1;
-  }
 </style> 
 <link rel="stylesheet" href="tipsy.css" type="text/css"/> 
+<link rel="stylesheet" href="jquery.gridster.min.css" type="text/css"/> 
+
 <script type='text/javascript' src='jquery-1.8.2.min.js'></script>
 <script type='text/javascript' src="jquery.tipsy.js"></script> 
 <script type='text/javascript' src="bugzilla.js"></script> 
+<script type='text/javascript' src="firebase.js"></script> 
 <script type='text/javascript' src="date-utils.js"></script> 
 <script type="text/javascript" src="mustache.js" ></script>
 <script type="text/javascript" src="asyncStorage.js" ></script>
 <script type="text/javascript" src="eventEmitter.js" ></script>
 <script type='text/javascript' src="protovis-r3.2.js"></script> 
 <script type='text/javascript' src="protovis.tipsy.js"></script> 
-<script type='text/javascript' src="team.js"></script> 
-<script> 
+<script type='text/javascript' src="jquery.gridster.min.js"></script> 
+<script type='text/javascript' src="chart.js"></script> 
 
-  var PEOPLE = []
-  for (var i in team) {
-    if (!team[i].length)
-      continue
-    PEOPLE.push({
-      name: i,
-      email: team[i]
+<script> 
+  var self = this
+  EventEmitter.call(self)
+
+  var releases = ['all', 'tef', 'leo']
+
+  /*
+  overview: generic data storage and caching layer across indexeddb
+    and distributed using firebase.
+
+  add(options): add a new data config.
+    options.key - unique string to identify the data
+    options.maxAge - max age of cached data in ms
+    options.lastUpdated - time of last update in unixtime
+    options.callback - function to call with data
+    options.refresh - function to call when data is too old
+
+  update(key): do an update. checks indexeddb, then firebase and then
+    options.refresh(). passes results to options.callback() when done.
+
+  updateAll(): update all locally registered configs.
+
+  get(key, callback)
+  */
+  var data = {
+    entries: {},
+    add: function data_add(options) {
+      this.entries[options.key] = options
+    },
+    update: function data_update(key, callback) {
+      //console.log('update', key)
+
+      function firebaseSanitize(str) {
+        return str.replace(/[\.\$\[\]#\/]/g, '---')
+      }
+
+      var options = this.entries[key],
+          skey = firebaseSanitize(key)
+
+      function checkLocal(cb) {
+        asyncStorage.getItem(options.key, function(result) {
+          cb(result)
+        })
+      }
+      function checkFirebase(cb) {
+        var ref = new Firebase('https://mozilla.firebaseio.com/searches/' + skey)
+        ref.once('value', function(snapshot) {
+          cb(snapshot.val())
+        })
+      }
+      function updateLocal(obj) {
+        return
+        //asyncStorage.setItem(options.key, obj, function(){})
+      }
+      function updateFirebase(obj) {
+        var ref = new Firebase('https://mozilla.firebaseio.com/searches/' + skey)
+        ref.set(obj)
+      }
+      function handleResults(results) {
+        options.callback(results)
+        if (callback)
+          callback(results)
+      }
+
+      /*
+      //console.log('checking local')
+      checkLocal(function(localResult) {
+        //console.log('checked local')
+        if (localResult && localResult.data &&
+            !isTooOld(localResult.lastUpdated, options.maxAge)) {
+          //console.log('update', options.key, 'using local')
+          handleResults(localResult.data)
+        }
+        else {
+          //console.log('local is too old', 'checking firebase')
+          */
+          checkFirebase(function(fbResult) {
+            //console.log('checked firebase')
+            if (fbResult && !isTooOld(fbResult.lastUpdated, options.maxAge)) {
+              //console.log('update', options.key, 'using firebase')
+              updateLocal(fbResult)
+              handleResults(fbResult.data)
+            }
+            else {
+              //console.log('fb is too old', 'getting fresh')
+              options.refresh(function(data) {
+                //console.log('update', options.key, 'using refreshed')
+                var result = {}
+                result.data = data
+                result.lastUpdated = (new Date()).getTime()
+                updateFirebase(result)
+                updateLocal(result)
+                handleResults(result.data)
+              })
+            }
+          })
+          /*
+        }
+      })
+      */
+    },
+    updateAll: function data_updateAll() {
+      //console.log('updateall')
+      for (var key in this.entries)
+        this.update(key)
+    },
+    get: function data_get(key, callback) {
+      this.update(key, callback)
+    }
+  }
+
+  // blockers (all)
+  data.add({
+    key: 'blockers-all',
+    maxAge: 60 * 60 * 1000, // 1 hour
+    callback: function(data) {
+      self.emit('b2g-blockers-all', data)
+    },
+    refresh: function(callback) {
+      Bugzilla.ajax({
+        url: "/bug",
+        data: {
+          'username': 'autonome+bztest@gmail.com',
+          'password': 'bztest1A',
+          'bug_status': ["NEW", "UNCONFIRMED", "ASSIGNED", "REOPENED"],
+          'field0-0-0': 'cf_blocking_b2g',
+          'type0-0-0': 'contains',
+          'value0-0-0': '+',
+        },
+        success: function(data) {
+          callback(data.bugs)
+        }
+      })
+    }
+  })
+
+  // blocker owners (all)
+  data.add({
+    key: 'blocker-owners-all',
+    maxAge: 60 * 60 * 1000, // 1 hour
+    callback: function(data) {
+      self.emit('b2g-blocker-owners', data)
+    },
+    refresh: function(callback) {
+      getBlockerOwners('all', callback)
+    }
+  })
+  
+  // blocker owners (tef+)
+  data.add({
+    key: 'blocker-owners-tef',
+    maxAge: 60 * 60 * 1000, // 1 hour
+    callback: function(data) {
+      self.emit('b2g-blocker-owners', data)
+    },
+    refresh: function(callback) {
+      getBlockerOwners('tef', callback)
+    }
+  })
+  
+  // blocker owners (leo+)
+  data.add({
+    key: 'blocker-owners-leo',
+    maxAge: 30000 /*60 * 60 * 1000*/, // 1 hour
+    callback: function(data) {
+      console.log('leo owners', data.length)
+      self.emit('b2g-blocker-owners', data)
+    },
+    refresh: function(callback) {
+      getBlockerOwners('leo', callback)
+    }
+  })
+
+  // teams
+  data.add({
+    key: 'teams',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
+    callback: function(data) {
+      self.emit('teams', data)
+    },
+    refresh: function(callback) {
+      var managers = [
+        { name: 'Lucas Adamski', email: 'ladamski@mozilla.com'},
+        { name: 'Faramarz Rashed', email: 'frashed@mozilla.com'},
+        { name: 'David Scravaglieri', email: 'dscravaglieri@mozilla.com'},
+        { name: 'Dylan Oliver', email: 'doliver@mozilla.com'},
+        { name: 'Andrew Overholt', email: 'overholt@mozilla.com'},
+        { name: 'James Ho', email: 'jho@mozilla.com'},
+        { name: 'Ken Chang', email: 'kchang@mozilla.com'},
+        { name: 'Tim Guan-tin Chien', email: 'tchien@mozilla.com'},
+        { name: 'CJ Ku', email: 'cku@mozilla.com'},
+        { name: 'Keven Kuo', email: 'kkuo@mozilla.com'},
+        { name: 'Hong Tang', email: 'htang@mozilla.com'},
+      ]
+      var teams = {}
+      teams['ladamski'] = [
+        'jhylands@mozilla.com', 
+        'kyle@nonpolynomial.com',
+        'gaye@mozilla.com',
+        'jedavis@mozilla.com',
+        'sotaro.ikeda.g@gmail.com',
+        'gwagner@mozilla.com',
+        'reuben.bmo@gmail.com',
+      ]
+      teams['frashed'] = [
+        'marshall@mozilla.com',
+        'fabrice@mozilla.com',
+        'mhabicher@mozilla.com',
+        'dhylands@mozilla.com',
+        'skrishnan@mozilla.com',
+        'ssaroha@mozilla.com',
+        'dsherk@mozilla.com',
+        'mwu@mozilla.com'
+      ]
+      teams['doliver'] = [
+        'dflanagan@mozilla.com',
+        'jford@mozilla.com',
+        'kgrandon@mozilla.com',
+        'jlal@mozilla.com',
+        'squibblyflabbetydoo@gmail.com',
+        'dpreston@mozilla.com',
+        'bugmail@asutherland.org'
+      ]
+      teams['dscravaglieri'] = [
+        'mbudzynski@mozilla.com',
+        'kaze@mozilla.com',
+        'brancis@mozilla.com',
+        'dale@arandomurl.com',
+        '21@vingtetun.org',
+        'anthony@ricaud.me',
+        'etienne@segonzac.info',
+        'gsvelto@mozilla.com',
+        'jwajsberg@mozilla.com',
+        'tzimmermann@mozilla.com'
+      ]
+      teams['overholt'] = [
+        'mlamouri@mozilla.com',
+        'amarchesini@mozilla.com',
+        'sicking@mozilla.com',
+        'bturner@mozilla.com'
+      ]
+      teams['jho'] = [
+        'wachen@mozilla.com',
+        'gchen@mozilla.com',
+        'tlee@mozilla.com',
+        'swu@mozilla.com',
+      ]
+      teams['kchang'] = [
+        'vchang@mozilla.com',
+        'echen@mozilla.com',
+        'yhuang@mozilla.com',
+        'glai@mozilla.com',
+        'chulee@mozilla.com',
+        'clian@mozilla.com',
+        'ctai@mozilla.com',
+        'htsai@mozilla.com',
+        'pwang@mozilla.com',
+        'vyang@mozilla.com',
+      ]
+      teams['tchien'] = [
+        'arthur.chen@mozilla.com',
+        'schung@mozilla.com',
+        'ehung@mozilla.com',
+        'yurenju.mozilla@gmail.com',
+        'dkuo@mozilla.com',
+        'akuo@mozilla.com',
+        'kmlee@mozilla.com',
+        'flin@mozilla.com',
+        'iliu@mozilla.com',
+        'rlu@mozilla.com',
+        'mshiao@mozilla.com',
+        'etseng@mozilla.com',
+      ]
+      teams['cku'] = [
+        'szchen@mozilla.com',
+        'bechen@mozilla.com',
+        'kchen@mozilla.com',
+        'schien@mozilla.com',
+        'echou@mozilla.com',
+        'thuang@mozilla.com',
+        'chung@mozilla.com',
+        'slee@mozilla.com',
+        'jolin@mozilla.com',
+        'slin@mozilla.com',
+        'ayang@mozilla.com',
+        'gyeh@mozilla.com',
+        'cyu@mozilla.com',
+        'pchang@mozilla.com',
+      ],
+      teams['kkuo'] = [
+        'kkuo@mozilla.com',
+        'pchang@mozilla.com',
+        'mchen@mozilla.com',
+        'shuang@mozilla.com',
+        'ahuang@mozilla.com',
+        'rlin@mozilla.com',
+        'vliu@mozilla.com',
+        'btian@mozilla.com',
+        'vwang@mozilla.com',
+      ]
+      teams['otherMoz'] = [
+        'catlee@mozilla.com',
+        'bsmith@mozilla.com',
+        'chris.double@double.co.nz',
+        'cvan@mozilla.com',
+        'edwin@mozilla.com',
+        'jmenon@mozilla.com',
+        'justin.lebar+bug@gmail.com',
+        'l10n@mozilla.com',
+        'server-ops-amo@mozilla-org.bugs',
+        'cassie@bocoup.com',
+        'danheberden@gmail.com',
+        'gene.lian@mozilla.com',
+        'waldron.rick@gmail.com',
+        'pivanov@mozilla.com',
+        'ajones@mozilla.com',
+        'kinetik@flim.org',
+        'alive@mozilla.com',
+        'nobody@mozilla.org',
+      ]
+      teams['CAF'] = []
+      teams['TID'] = [
+        'amac@tid.es',
+        'acperez@tid.es',
+        'alberto.pastor@o2.com',
+        'igonzaleznicolas@gmail.com',
+        'jmcf@tid.es',
+        'fbsc@tid.es',
+        'francisco.jordano@o2.com',
+        'crdlc@tid.es',
+        'salva@unoyunodiez.com',
+        'fernando.campo@o2.com',
+        'ferjmoreno@gmail.com',
+        'josea.olivera@gmail.com',
+        'frsela@tid.es',
+        'willyaranda@mozilla-hispano.org',
+        'gtorodelvalle@gmail.com',
+        'macajc@gmail.com'
+      ]
+      teams['Unagi'] = [
+        'Firefox_Mozilla@126.com',
+      ]
+      teams['Hamachi'] = []
+      teams['Buri'] = [
+        'mei.kong@tcl.com',
+      ]
+      teams['other'] = []
+
+
+      data.get('blockers-all', function(bugs) {
+        bugs.forEach(function(bug) {
+          var email = bug.assigned_to.name
+          if (email.indexOf('leo.bugzilla.') != -1 && !inTeam(email))
+            teams['Hamachi'].push(email)
+          else if (email.indexOf('@codeaurora.org') != -1 && !inTeam(email)) 
+            teams['CAF'].push(email)
+          else if (email.indexOf('@zte.com.cn') != -1 && !inTeam(email)) 
+            teams['Unagi'].push(email)
+          else if (!inTeam(teams, email)) {
+            teams['other'].push(bug.assigned_to.name)
+          }
+        })
+        callback(teams)
+      })
+    }
+  })
+
+  function inTeam(teams, email) {
+    for (var team in teams) {
+      if (teams[team].indexOf(email) != -1)
+        return team
+    }
+    return false
+  }
+
+  data.get('teams', function(teams) {
+    data.get('blockers-all', function(bugs) {
+      var blockers = {},
+          breakdown = []
+      for (var team in teams)
+        blockers[team] = 0
+      bugs.forEach(function(bug) {
+        var email = bug.assigned_to.name
+        var team = inTeam(teams, email)
+        if (!team)
+          team = 'otherMoz'
+        blockers[team]++
+      })
+      for (var team in blockers) {
+        breakdown.push({
+          team: team,
+          people: teams[team].length,
+          blockers: blockers[team]
+        })
+      }
+    })
+  })
+
+  // release: all, tef, leo
+  function getBlockerOwners(release, cb) {
+    data.get('blockers-all', function(bugs) {
+      var people = [], tmp = []
+      bugs.forEach(function(bug) {
+        var email = bug.assigned_to.name,
+        person = null
+        if (tmp.indexOf(email) == -1 &&
+            release == 'all' || bug.cf_blocking_b2g.indexOf(release) != -1) {
+          person = {
+            name: bug.assigned_to.real_name || email,
+            email: email,
+            bugs: [],
+            releases: { tef: 0, leo: 0 }
+          }
+          people.push(person)
+          tmp.push(email)
+        }
+        else {
+          person = people.filter(function(person) { return person.email == email })[0]
+        }
+
+        if (person) {
+          person.bugs.push(bug)
+          person.releases.tef = bug.cf_blocking_b2g.indexOf('tef') != -1
+          person.releases.leo = bug.cf_blocking_b2g.indexOf('leo') != -1
+        }
+      })
+      cb(people)
+    })
+
+    /*
+    Bugzilla.ajax({
+      url: "/bug",
+      data: {
+        'username': 'autonome+bztest@gmail.com',
+        'password': 'bztest1A',
+        'bug_status': ["NEW", "UNCONFIRMED", "ASSIGNED", "REOPENED"],
+        'field0-0-0': 'cf_blocking_b2g',
+        'type0-0-0': 'contains',
+        'value0-0-0': (release == 'all' ? '' : release) + '+',
+      },
+      success: function(data) {
+        var people = [], tmp = []
+        data.bugs.forEach(function(bug) {
+          if (tmp.indexOf(bug.assigned_to.name) == -1) {
+            people.push({
+              name: bug.assigned_to.real_name || bug.assigned_to.name,
+              email: bug.assigned_to.name
+            })
+            tmp.push(bug.assigned_to.name)
+          }
+        })
+        cb(people)
+      }
+    })
+    */
+  }
+
+  // returns true if dateInMs is older than maxAgeInMs
+  function isTooOld(dateInMs, maxAgeInMs) {
+    return ((new Date()).getTime() - dateInMs) > maxAgeInMs
+  }
+
+  function addOwnerSearch(email, cb) {
+    data.add({
+      key: email,
+      maxAge: 60 * 60 * 1000, // 1 hour
+      callback: function(data) {
+        cb(data)
+      },
+      refresh: function(callback) {
+        getActivity(email, WEEKS_BACK, callback)
+      }
     })
   }
 
   var WEEK_MS = 1000 * 60 * 60 * 24 * 7;
   var WEEKS_BACK = 4;
-  var STYLE_DEBUGGING_MODE = false;
 
   var d = new Date()
   var lastMonthDate = new Date(d.getFullYear(), d.getMonth(), 0, 0)
@@ -157,7 +623,7 @@
         'field0-0-0': 'assigned_to',
         'type0-0-0': 'equals',
         'value0-0-0': email,
-        'field1-0-0': 'cf_blocking_basecamp',
+        'field1-0-0': 'cf_blocking_b2g',
         'type1-0-0': 'contains',
         'value1-0-0': '+',
       },
@@ -177,7 +643,7 @@
         'field0-0-0': 'assigned_to',
         'type0-0-0': 'equals',
         'value0-0-0': email,
-        'field1-0-0': 'cf_blocking_basecamp',
+        'field1-0-0': 'cf_blocking_b2g',
         'type1-0-0': 'contains',
         'value1-0-0': '+',
         'field2-0-0': 'keywords',
@@ -195,6 +661,7 @@
     });
     requestsLeft += 1;
    
+    /*
     // Query for blockers fixed last month.
     Bugzilla.ajax({
       url: "/count",
@@ -209,7 +676,7 @@
         'type0-0-0': 'equals',
         'value0-0-0': email,
 
-        'field1-0-0': 'cf_blocking_basecamp',
+        'field1-0-0': 'cf_blocking_b2g',
         'type1-0-0': 'contains',
         'value1-0-0': '+',
 
@@ -221,6 +688,7 @@
       }
     });
     requestsLeft += 1;
+    */
    
     function getActivityForWeek(query, key, numWeeksAgo) {
       var baseQuery = {
@@ -247,14 +715,14 @@
    
     for (var i = 0; i < numWeeksAgo; i++) {
       getActivityForWeek({
-        'field0-0-0': 'cf_blocking_basecamp',
+        'field0-0-0': 'cf_blocking_b2g',
         'type0-0-0': 'contains',
         'value0-0-0': '+',
         'changed_field': 'resolution',
         'changed_field_to': 'fixed',
       }, "blockersFixed", i);
       getActivityForWeek({
-        'field0-0-0': 'cf_blocking_basecamp',
+        'field0-0-0': 'cf_blocking_b2g',
         'type0-0-0': 'not_contains',
         'value0-0-0': '+',
         'changed_field': 'resolution',
@@ -263,106 +731,81 @@
     }
   }
    
-  function makeRenderer(node, person) {
-    return function(result) {
-      asyncStorage.setItem(person.email, {
-        user: person,
-        data: result
-      }, function(){})
-      result.blockersFixed.reverse();
-      makeBarChart(result.blockersFixed,
-                   node.find(".blockersGraph").attr("id"),
-                   person);
-      makeBarChart(result.nonblockersFixed,
-                   node.find(".nonblockersGraph").attr("id"),
-                   person);
+  function renderPerson(person, result) {
+    var node = document.querySelector('.entry[data-email="' + person.email + '"]')
+    if (node) {
+      node = $(node)
+    }
+    else {
+      node = $("#templates .entry").clone();
+      $("#content").append(node);
+      node.attr('data-email', person.email)
+    }
 
-      // blockers owned
-      var owned;
-      switch (result.blockersOwned) {
-        case 0:
-          owned = "owns none.";
-          break;
-        case 1:
-          owned = "owns 1.";
-          break;
-        default:
-          owned = "owns " + result.blockersOwned + ".";
-      }
-      node.find(".pending").text(owned);
+    node.find(".blockersGraph").attr("id", "blockersGraph-" + person.name);
+    node.find(".nonblockersGraph").attr("id", "nonblockersGraph-" + person.name);
+    node.find(".name").text(person.name);
+    var dashboard = node.find("a.dashboard");
+    dashboard.attr("href", dashboard.attr("href") + encodeURIComponent(person.email));
+    var timerecord = node.find("a.timerecord");
+    timerecord.attr("href", timerecord.attr("href") + encodeURIComponent(person.email));
 
-      // blockers need landing
-      var needLanding;
-      switch (result.blockersNeedLanding) {
-        case 0:
-          needLanding = "none need landing.";
-          break;
-        case 1:
-          needLanding = "1 needs landing.";
-          break;
-        default:
-          needLanding = result.blockersNeedLanding + " need landing.";
-      }
-      node.find(".needLanding").text(needLanding);
+    result.blockersFixed.reverse();
+    makeBarChart(result.blockersFixed,
+                 node.find(".blockersGraph").attr("id"),
+                 person);
+    makeBarChart(result.nonblockersFixed,
+                 node.find(".nonblockersGraph").attr("id"),
+                 person);
 
-      // blockers fixed last month
-      var lastMonth;
-      switch (result.blockersFixedLastMonth) {
-        case 0:
-          lastMonth = "none fixed in " + lastMonthName + ".";
-          break;
-        case 1:
-          lastMonth = "1 blocker fixed in " + lastMonthName + ".";
-          break;
-        default:
-          lastMonth = result.blockersFixedLastMonth + " blockers fixed in " + lastMonthName + ".";
-      }
-      node.find(".lastMonth").text(lastMonth);
-    };
+    // blockers owned
+    var owned;
+    switch (result.blockersOwned) {
+      case 0:
+        owned = "owns no blockers.";
+        break;
+      case 1:
+        owned = "owns 1 blocker.";
+        break;
+      default:
+        owned = "owns " + result.blockersOwned + " blockers.";
+    }
+    node.find(".pending").text(owned);
+
+    /*
+    // blockers need landing
+    var needLanding;
+    switch (result.blockersNeedLanding) {
+      case 0:
+        needLanding = "none need landing.";
+        break;
+      case 1:
+        needLanding = "1 needs landing.";
+        break;
+      default:
+        needLanding = result.blockersNeedLanding + " need landing.";
+    }
+    node.find(".needLanding").text(needLanding);
+    */
+
+    /*
+    // blockers fixed last month
+    var lastMonth;
+    switch (result.blockersFixedLastMonth) {
+      case 0:
+        lastMonth = "none fixed in " + lastMonthName + ".";
+        break;
+      case 1:
+        lastMonth = "1 blocker fixed in " + lastMonthName + ".";
+        break;
+      default:
+        lastMonth = result.blockersFixedLastMonth + " blockers fixed in " + lastMonthName + ".";
+    }
+    node.find(".lastMonth").text(lastMonth);
+    */
   }
    
-  $(window).ready(function() {
-    PEOPLE.forEach(function(person) {
-      var node = $("#templates .entry").clone();
-      node.find(".blockersGraph").attr("id", "blockersGraph-" + person.name);
-      node.find(".nonblockersGraph").attr("id", "nonblockersGraph-" + person.name);
-      node.find(".name").text(person.name);
-      var dashboard = node.find("a.dashboard");
-      dashboard.attr("href", dashboard.attr("href") + person.email);
-      var timerecord = node.find("a.timerecord");
-      timerecord.attr("href", timerecord.attr("href") + person.email);
-      if (person.twitter) {
-        var twitterURL = "http://twitter.com/" + person.twitter;
-        var twitterLink = $("<a></a>").attr("href", twitterURL);
-        twitterLink.attr("target", "twitter");
-        var twitterPortrait = new Image();
-        twitterPortrait.src = "http://img.tweetimag.es/i/" +
-                              person.twitter + "_b";
-        twitterLink.append(twitterPortrait);
-        node.find(".portrait").append(twitterLink);
-      }
-      else {
-        var twitterPortrait = new Image();
-        twitterPortrait.src = "http://static.twitter.com/images/default_profile_bigger.png";
-        node.find(".portrait").append(twitterPortrait);
-      }
-      $("#content").append(node);
-   
-      var renderer = makeRenderer(node, person);
-   
-      if (STYLE_DEBUGGING_MODE) {
-        var FAKE_DATA = {
-          matches: 2, 
-          blockersFixed: [9, 10, 7, 3]
-        };
-        renderer(FAKE_DATA);
-      } else
-        getActivity(person.email, WEEKS_BACK, renderer);
-    });
-  });
-
   function makeBarChart(data, nodeId, person) {
-    console.log(data)
     var vis = new pv.Panel()
         .width(100)
         .height(30)
@@ -396,24 +839,74 @@
    
     vis.render();
   }
+
+  function getActiveRelease() {
+    return $('.release[active="true"]').data('release')
+  }
+
+  // build UI once people data is available
+  self.on('b2g-blocker-owners', function(people) {
+    // clear existing content
+    document.querySelector('#content').innerHTML = ''
+
+    // render
+    people.forEach(function(person) {
+      addOwnerSearch(person.email, function(result) {
+        renderPerson(person, result)
+      })
+      data.update(person.email)
+    })
+
+  })
+
+
+  $(window).ready(function() {
+    // kick it off
+    data.update('blocker-owners-all')
+    $('.release[data-release="all"]').attr('active', true)
+
+    $('.release').click(function() {
+      var release = $(this).data('release')
+      data.update('blocker-owners-' + release)
+      releases.forEach(function(rel) {
+        $('.release[data-release="' + rel + '"]').attr('active', rel == release ? true : false)
+      })
+    })
+
+    $('.release[data-release="all"]').attr('active', true)
+
+    // refresh every hour
+    setInterval(function() {
+      console.log('timer, updating all')
+      data.updateAll()
+    }, 60 * 60 * 1000)
+    
+  })
+
 </script> 
-<h1 id="header">BLOCKERS!</h1>
-<div>(hold tight, takes a minute to load)</div>
+
+<div class="header">
+  <h2 class="title">Firefox OS - Team Status</h2>
+  <h2 class="releases">
+    <span class="release" data-release="all">all</span> |
+    <span class="release" data-release="tef">tef+</span> |
+    <span class="release" data-release="leo">leo+</span>
+  </h2>
+</div>
 
 <div id="content"></div>
 
 <div id="templates"> 
   <div class="entry"> 
-    <div class="portrait"></div> 
     <div>
       <div class="name"></div> 
       <div class="info">
         <!--<a class="dashboard" target="dashboard" href="http://toolness.github.com/bugzilla-dashboard/#username=">-->
-        <a class="dashboard" target="bugsowned" href="https://bugzilla.mozilla.org/buglist.cgi?quicksearch=blocking-basecamp:%2B%20%20@">
+        <a class="dashboard" target="bugsowned" href="https://bugzilla.mozilla.org/buglist.cgi?quicksearch=cf_blocking_b2g:%2B%20%20@">
           <span class="pending">fetching numbers...</span>
         </a><br>
         <span class="needLanding">fetching numbers...</span><br>
-        <span class="lastMonth">fetching numbers...</span><br>
+        <!--<span class="lastMonth">fetching numbers...</span><br>-->
         <a class="timerecord" target="timetracker" href="http://mozilla.bonardo.net/btt/?from=-7D&expand=on&bugmail=">activity record</a>
       </div> 
     </div>
@@ -425,13 +918,3 @@
     </div>
   </div> 
 </div>
-<script>
-  var NUM = 50;
-  for(var i=0;i<NUM;i++){
-   var ray = document.createElement("div");
-   ray.className = "ray";
-   ray.style.MozTransform = "rotate(%deg)".replace("%", i*360/NUM);
-   document.body.appendChild(ray);
-  }
-</script>
-

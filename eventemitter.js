@@ -1,4 +1,4 @@
-function EventEmitter(){
+function EventEmitter() {
     var map = new Object;
     var listenernum = new Object;
     
@@ -99,10 +99,7 @@ function EventEmitter(){
         }
     }
     
-    
-    
     this.on("error", function(exception){
         console.log(exception);
     });
-    
 }
